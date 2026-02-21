@@ -66,51 +66,50 @@
 
 ### 1.2 坐标系统与数学库
 **文件：** `crates/tickle_core/src/math.rs`
-**文件：** `crates/tickle_core/src/math.rs`
 
-- [ ] 实现 `LogicCoord` 类型（i32 定点数）
-- [ ] 实现 `LogicVec2` 结构体
-  - [ ] 加减乘除运算符重载
-  - [ ] `to_render()` 转换为 f32
-  - [ ] `magnitude()` / `normalize()` 方法
-- [ ] 实现 `LogicRect` 结构体
-  - [ ] `intersects()` AABB 碰撞检测
-  - [ ] `contains_point()` 点包含检测
-- [ ] 单元测试（至少 20 个测试用例）
+- [x] 实现 `LogicCoord` 类型（i32 定点数）
+- [x] 实现 `LogicVec2` 结构体
+  - [x] 加减乘除运算符重载
+  - [x] `to_render()` 转换为 f32
+  - [x] `magnitude()` / `normalize()` 方法
+- [x] 实现 `LogicRect` 结构体
+  - [x] `intersects()` AABB 碰撞检测
+  - [x] `contains_point()` 点包含检测
+- [x] 单元测试（至少 20 个测试用例）
 
 ### 1.3 ECS 组件定义
 **文件：** `crates/tickle_core/src/components.rs`
 
-- [ ] 定义核心组件
-  - [ ] `Position`
-  - [ ] `PreviousPosition`（新增，用于插值）
-  - [ ] `Velocity`
-  - [ ] `Facing`
-  - [ ] `Health`
-  - [ ] `PowerGauge`
-- [ ] 定义战斗组件
-  - [ ] `FighterState`（状态机）
-  - [ ] `InputBuffer`（输入缓冲）
-  - [ ] `HitboxManager`（碰撞盒）
-- [ ] 定义渲染组件
-  - [ ] `SpriteAnimation`
-  - [ ] `Transform`
-- [ ] 为所有组件实现 `Clone` trait（回滚网络需要）
+- [x] 定义核心组件
+  - [x] `Position`
+  - [x] `PreviousPosition`（新增，用于插值）
+  - [x] `Velocity`
+  - [x] `Facing`
+  - [x] `Health`
+  - [x] `PowerGauge`
+- [x] 定义战斗组件
+  - [x] `FighterState`（状态机）
+  - [x] `InputBuffer`（输入缓冲）
+  - [x] `HitboxManager`（碰撞盒）
+- [x] 定义渲染组件
+  - [x] `SpriteAnimation`
+  - [x] `Transform`
+- [x] 为所有组件实现 `Clone` trait（回滚网络需要）
 
 ### 1.4 输入系统
 **文件：** `crates/tickle_core/src/input.rs`
 
-- [ ] 定义 `InputState` 结构体（按钮位图 + 方向）
-- [ ] 实现 `InputBuffer`（16 帧循环队列）
-  - [ ] `push()` 添加新输入
-  - [ ] `get_history()` 获取历史输入
-- [ ] 实现指令识别器 `CommandRecognizer`
-  - [ ] QCF（↓↘→）识别
-  - [ ] QCB（↓↙←）识别
-  - [ ] DP（→↓↘）识别
-  - [ ] HCF/HCB（半圆）识别
-  - [ ] 双击方向（→→）识别
-- [ ] 单元测试（模拟输入序列，验证指令识别）
+- [x] 定义 `InputState` 结构体（按钮位图 + 方向）
+- [x] 实现 `InputBuffer`（16 帧循环队列）
+  - [x] `push()` 添加新输入
+  - [x] `get_history()` 获取历史输入
+- [x] 实现指令识别器 `CommandRecognizer`
+  - [x] QCF（↓↘→）识别
+  - [x] QCB（↓↙←）识别
+  - [x] DP（→↓↘）识别
+  - [x] HCF/HCB（半圆）识别
+  - [x] 双击方向（→→）识别
+- [x] 单元测试（模拟输入序列，验证指令识别）
 
 ### 1.5 资源管理系统
 **文件：** `crates/tickle_assets/src/lib.rs`
