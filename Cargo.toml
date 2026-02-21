@@ -1,0 +1,54 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/tickle_core",
+    "crates/tickle_render",
+    "crates/tickle_audio",
+    "crates/tickle_network",
+    "crates/tickle_assets",
+    "game",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["Tickle Team"]
+license = "MIT"
+
+[workspace.dependencies]
+# Window & Platform
+winit = "0.30"
+
+# Graphics
+wgpu = "23.0"
+bytemuck = { version = "1.14", features = ["derive"] }
+
+# Audio
+kira = "0.9"
+
+# Networking
+ggrs = "0.10"
+
+# ECS
+hecs = "0.10"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+ron = "0.8"
+
+# Math
+glam = "0.29"
+
+# Image loading
+image = "0.25"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Async runtime (for networking)
+tokio = { version = "1.0", features = ["full"] }
+
+# Logging
+log = "0.4"
+env_logger = "0.11"
