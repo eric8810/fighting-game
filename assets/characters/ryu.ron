@@ -1,0 +1,50 @@
+// Character data for Ryu - Tickle Fighting Engine
+// All values use logic coordinates (1/100 pixel units)
+(
+    id: "ryu",
+    name: "Ryu",
+    health: 10000,
+    walk_speed: 500,
+    back_walk_speed: 350,
+    run_speed: 900,
+    jump_velocity: 1800,
+    gravity: -80,
+    pushbox_width: 3000,
+    pushbox_height: 8000,
+
+    // Standing hurtbox (default)
+    standing_hurtbox: (x: -2000, y: 0, w: 4000, h: 8000),
+    // Crouching hurtbox
+    crouching_hurtbox: (x: -2000, y: 0, w: 4500, h: 5000),
+    // Jumping hurtbox
+    jumping_hurtbox: (x: -1500, y: -1000, w: 3000, h: 6000),
+
+    // Move list references
+    moves: [
+        "ryu_stand_lp",
+        "ryu_hadoken",
+        "ryu_shoryuken",
+    ],
+
+    // Animation references
+    animations: {
+        "idle": (
+            texture: "test_fighter",
+            frames: [(atlas_index: 0, offset: (x: 0, y: 0))],
+            frame_duration: 8,
+            looping: true,
+        ),
+        "walk_forward": (
+            texture: "test_fighter",
+            frames: [(atlas_index: 0, offset: (x: 0, y: 0))],
+            frame_duration: 6,
+            looping: true,
+        ),
+        "punch": (
+            texture: "test_fighter",
+            frames: [(atlas_index: 1, offset: (x: 0, y: 0))],
+            frame_duration: 4,
+            looping: false,
+        ),
+    },
+)

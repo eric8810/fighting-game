@@ -113,8 +113,8 @@ impl InputBuffer {
     /// Get full history (oldest to newest)
     pub fn get_history(&self) -> [InputState; 16] {
         let mut result = [InputState::EMPTY; 16];
-        for i in 0..16 {
-            result[i] = self.get(15 - i);
+        for (i, slot) in result.iter_mut().enumerate() {
+            *slot = self.get(15 - i);
         }
         result
     }
@@ -136,11 +136,11 @@ impl Default for InputBuffer {
 /// Special move command types
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Command {
-    QCF,  // Quarter Circle Forward: ↓↘→
-    QCB,  // Quarter Circle Back: ↓↙←
-    DP,   // Dragon Punch: →↓↘
-    HCF,  // Half Circle Forward: ←↙↓↘→
-    HCB,  // Half Circle Back: →↘↓↙←
+    QCF,          // Quarter Circle Forward: ↓↘→
+    QCB,          // Quarter Circle Back: ↓↙←
+    DP,           // Dragon Punch: →↓↘
+    HCF,          // Half Circle Forward: ←↙↓↘→
+    HCB,          // Half Circle Back: →↘↓↙←
     DashForward,  // →→
     DashBackward, // ←←
 }
@@ -424,6 +424,9 @@ mod tests {
         buffer.push(InputState::new(0, Direction::Neutral));
         buffer.push(InputState::new(0, Direction::Right));
 
-        assert_eq!(recognizer.recognize(&buffer, true), Some(Command::DashForward));
+        assert_eq!(
+            recognizer.recognize(&buffer, true),
+            Some(Command::DashForward)
+        );
     }
 }

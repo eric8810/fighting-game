@@ -25,7 +25,10 @@ impl LogicVec2 {
     /// Convert from pixels to logic coordinates
     #[inline]
     pub const fn from_pixels(x: i32, y: i32) -> Self {
-        Self { x: x * 100, y: y * 100 }
+        Self {
+            x: x * 100,
+            y: y * 100,
+        }
     }
 
     /// Convert to render coordinates (f32 pixels)
@@ -166,7 +169,10 @@ impl LogicRect {
     /// Get top-left corner
     #[inline]
     pub fn top_left(self) -> LogicVec2 {
-        LogicVec2 { x: self.x, y: self.y }
+        LogicVec2 {
+            x: self.x,
+            y: self.y,
+        }
     }
 
     /// Get bottom-right corner

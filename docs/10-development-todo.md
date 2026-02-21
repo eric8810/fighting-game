@@ -1,7 +1,8 @@
 # Tickle Fighting Engine - 开发任务清单
 
 **版本：** v0.1.0-alpha
-**更新日期：** 2026-02-21
+**更新日期：** 2026-02-22
+**状态：** 阶段 1 完成，阶段 2 部分完成
 
 ---
 
@@ -52,17 +53,17 @@
 ### 1.1 游戏主循环与帧率系统
 **文件：** `game/src/game_loop.rs`
 
-- [ ] 实现固定时间步长（Fixed Timestep）
-  - [ ] 逻辑帧率固定 60 FPS
-  - [ ] 渲染帧率可变（60/120/144/240 Hz）
-  - [ ] 累加器（Accumulator）防止时间漂移
-- [ ] 实现渲染插值系统
-  - [ ] `PreviousPosition` 组件
-  - [ ] `interpolate()` 插值函数
-  - [ ] `save_previous_position_system()`
-- [ ] 实现帧率计数器（FPS Counter）
-- [ ] 配置 wgpu `PresentMode`（VSync / NoVsync）
-- [ ] 单元测试（验证 60 FPS 逻辑稳定性）
+- [x] 实现固定时间步长（Fixed Timestep）
+  - [x] 逻辑帧率固定 60 FPS
+  - [x] 渲染帧率可变（60/120/144/240 Hz）
+  - [x] 累加器（Accumulator）防止时间漂移
+- [x] 实现渲染插值系统
+  - [x] `PreviousPosition` 组件
+  - [x] `interpolate()` 插值函数
+  - [x] `save_previous_position_system()`
+- [x] 实现帧率计数器（FPS Counter）
+- [x] 配置 wgpu `PresentMode`（VSync / NoVsync）
+- [x] 单元测试（验证 60 FPS 逻辑稳定性）
 
 ### 1.2 坐标系统与数学库
 **文件：** `crates/tickle_core/src/math.rs`
@@ -114,15 +115,15 @@
 ### 1.5 资源管理系统
 **文件：** `crates/tickle_assets/src/lib.rs`
 
-- [ ] 定义 `AssetId` 类型（UUID 或字符串）
-- [ ] 实现 `AssetManager<T>`
-  - [ ] `load<T: Asset>()` 加载资源
-  - [ ] `get<T>()` 获取资源引用（Arc）
-  - [ ] 资源缓存（HashMap）
-- [ ] 实现 RON 文件加载器
-  - [ ] `MoveData` 招式数据加载
-  - [ ] `CharacterData` 角色数据加载
-- [ ] 错误处理（自定义 `AssetError` 类型）
+- [x] 定义 `AssetId` 类型（UUID 或字符串）
+- [x] 实现 `AssetManager<T>`
+  - [x] `load<T: Asset>()` 加载资源
+  - [x] `get<T>()` 获取资源引用（Arc）
+  - [x] 资源缓存（HashMap）
+- [x] 实现 RON 文件加载器
+  - [x] `MoveData` 招式数据加载
+  - [x] `CharacterData` 角色数据加载
+- [x] 错误处理（自定义 `AssetError` 类型）
 
 ---
 
@@ -131,46 +132,46 @@
 ### 2.1 wgpu 初始化
 **文件：** `crates/tickle_render/src/lib.rs`
 
-- [ ] 创建 `RenderContext` 结构体
-  - [ ] 初始化 wgpu `Instance` / `Adapter` / `Device` / `Queue`
-  - [ ] 创建 `Surface`（绑定 winit 窗口）
-  - [ ] 配置 `SurfaceConfiguration`（分辨率、格式）
-- [ ] 实现窗口 resize 处理
-- [ ] 验证基础渲染（清屏为纯色）
+- [x] 创建 `RenderContext` 结构体
+  - [x] 初始化 wgpu `Instance` / `Adapter` / `Device` / `Queue`
+  - [x] 创建 `Surface`（绑定 winit 窗口）
+  - [x] 配置 `SurfaceConfiguration`（分辨率、格式）
+- [x] 实现窗口 resize 处理
+- [x] 验证基础渲染（清屏为纯色）
 
 ### 2.2 纹理加载与 Atlas
 **文件：** `crates/tickle_render/src/texture.rs`
 
-- [ ] 实现 `Texture` 结构体（wgpu::Texture 封装）
-- [ ] 实现 PNG 加载器（使用 `image` crate）
-- [ ] 实现 `TextureAtlas`
-  - [ ] 从 JSON 加载 Atlas 元数据（Aseprite 导出格式）
-  - [ ] `get_sprite_uv()` 获取精灵 UV 坐标
-- [ ] 纹理绑定组（wgpu::BindGroup）
+- [x] 实现 `Texture` 结构体（wgpu::Texture 封装）
+- [x] 实现 PNG 加载器（使用 `image` crate）
+- [x] 实现 `TextureAtlas`
+  - [x] 从 JSON 加载 Atlas 元数据（Aseprite 导出格式）
+  - [x] `get_sprite_uv()` 获取精灵 UV 坐标
+- [x] 纹理绑定组（wgpu::BindGroup）
 
 ### 2.3 Sprite Batch 渲染器
 **文件：** `crates/tickle_render/src/sprite_batch.rs`
 
-- [ ] 定义 `SpriteInstance` 结构体（顶点数据）
-- [ ] 编写 WGSL 着色器
-  - [ ] Vertex Shader（MVP 变换 + UV 传递）
-  - [ ] Fragment Shader（纹理采样 + Alpha 混合）
-- [ ] 实现 `SpriteBatchRenderer`
-  - [ ] `begin()` 开始批次
-  - [ ] `draw_sprite()` 添加精灵到批次
-  - [ ] `flush()` 提交批次到 GPU
-- [ ] 动态顶点缓冲（每帧更新）
-- [ ] 测试：渲染 100 个精灵，验证批量绘制
+- [x] 定义 `SpriteInstance` 结构体（顶点数据）
+- [x] 编写 WGSL 着色器
+  - [x] Vertex Shader（MVP 变换 + UV 传递）
+  - [x] Fragment Shader（纹理采样 + Alpha 混合）
+- [x] 实现 `SpriteBatchRenderer`
+  - [x] `begin()` 开始批次
+  - [x] `draw_sprite()` 添加精灵到批次
+  - [x] `flush()` 提交批次到 GPU
+- [x] 动态顶点缓冲（每帧更新）
+- [x] 测试：渲染 100 个精灵，验证批量绘制
 
 ### 2.4 调试渲染器
 **文件：** `crates/tickle_render/src/debug_renderer.rs`
 
-- [ ] 实现 `LineRenderer`（绘制线段）
-- [ ] 实现 `DebugRenderer`
-  - [ ] `draw_rect()` 绘制矩形框（碰撞盒可视化）
-  - [ ] `draw_cross()` 绘制十字（位置标记）
-  - [ ] `draw_text()` 绘制文本（帧数、坐标）
-- [ ] 可通过按键切换显示/隐藏（F1 键）
+- [x] 实现 `LineRenderer`（绘制线段）
+- [x] 实现 `DebugRenderer`
+  - [x] `draw_rect()` 绘制矩形框（碰撞盒可视化）
+  - [x] `draw_cross()` 绘制十字（位置标记）
+  - [x] `draw_text()` 绘制文本（帧数、坐标）
+- [x] 可通过按键切换显示/隐藏（F1 键）
 
 ---
 
@@ -194,58 +195,58 @@
 ### 3.2 碰撞检测系统
 **文件：** `crates/tickle_core/src/systems/collision.rs`
 
-- [ ] 实现 `collision_system()`
-  - [ ] 查询所有角色的 `Position` + `HitboxManager`
-  - [ ] Hitbox vs Hurtbox AABB 检测
-  - [ ] 生成 `HitEvent`（命中事件）
-- [ ] 实现 `pushbox_separation_system()`
-  - [ ] Pushbox 重叠时向外推开
-  - [ ] 边界限制（不能推出舞台）
-- [ ] 实现碰撞盒世界坐标转换
-  - [ ] 考虑角色位置 + 朝向（镜像翻转）
+- [x] 实现 `collision_system()`
+  - [x] 查询所有角色的 `Position` + `HitboxManager`
+  - [x] Hitbox vs Hurtbox AABB 检测
+  - [x] 生成 `HitEvent`（命中事件）
+- [x] 实现 `pushbox_separation_system()`
+  - [x] Pushbox 重叠时向外推开
+  - [x] 边界限制（不能推出舞台）
+- [x] 实现碰撞盒世界坐标转换
+  - [x] 考虑角色位置 + 朝向（镜像翻转）
 
 ### 3.3 战斗系统
 **文件：** `crates/tickle_core/src/systems/combat.rs`
 
-- [ ] 实现 `hit_resolution_system()`
-  - [ ] 处理 `HitEvent`
-  - [ ] 扣除生命值（考虑伤害衰减）
-  - [ ] 增加气槽
-  - [ ] 设置受击状态（Hitstun / Blockstun）
-  - [ ] 应用击退（Knockback）
-- [ ] 实现连招衰减表
+- [x] 实现 `hit_resolution_system()`
+  - [x] 处理 `HitEvent`
+  - [x] 扣除生命值（考虑伤害衰减）
+  - [x] 增加气槽
+  - [x] 设置受击状态（Hitstun / Blockstun）
+  - [x] 应用击退（Knockback）
+- [x] 实现连招衰减表
   ```rust
   const COMBO_SCALING: [f32; 10] = [
       1.0, 1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.5, 0.5, 0.5
   ];
   ```
-- [ ] 实现气槽充能逻辑
-  - [ ] 攻击命中 +20
-  - [ ] 攻击被格挡 +10
-  - [ ] 被攻击命中 +30
+- [x] 实现气槽充能逻辑
+  - [x] 攻击命中 +20
+  - [x] 攻击被格挡 +10
+  - [x] 被攻击命中 +30
 
 ### 3.4 动画系统
 **文件：** `crates/tickle_core/src/systems/animation.rs`
 
-- [ ] 实现 `animation_system()`
-  - [ ] 推进 `SpriteAnimation.frame_timer`
-  - [ ] 切换到下一帧
-  - [ ] 循环播放 / 单次播放
-- [ ] 实现动画事件回调
-  - [ ] 特定帧触发音效
-  - [ ] 特定帧生成碰撞盒
-- [ ] 根据 `FighterState` 自动切换动画
+- [x] 实现 `animation_system()`
+  - [x] 推进 `SpriteAnimation.frame_timer`
+  - [x] 切换到下一帧
+  - [x] 循环播放 / 单次播放
+- [x] 实现动画事件回调
+  - [x] 特定帧触发音效
+  - [x] 特定帧生成碰撞盒
+- [x] 根据 `FighterState` 自动切换动画
 
 ### 3.5 物理系统
 **文件：** `crates/tickle_core/src/systems/physics.rs`
 
-- [ ] 实现 `velocity_system()`
-  - [ ] 应用速度到位置：`pos += vel`
-  - [ ] 应用重力：`vel.y -= GRAVITY`（仅空中）
-- [ ] 实现地面检测
-  - [ ] `pos.y <= 0` 时落地
-  - [ ] 落地时 `vel.y = 0`，状态转换为 `Idle`
-- [ ] 实现摩擦力（地面减速）
+- [x] 实现 `velocity_system()`
+  - [x] 应用速度到位置：`pos += vel`
+  - [x] 应用重力：`vel.y -= GRAVITY`（仅空中）
+- [x] 实现地面检测
+  - [x] `pos.y <= 0` 时落地
+  - [x] 落地时 `vel.y = 0`，状态转换为 `Idle`
+- [x] 实现摩擦力（地面减速）
 
 ---
 

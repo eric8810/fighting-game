@@ -1,4 +1,4 @@
-use crate::math::{LogicVec2, LogicRect};
+use crate::math::{LogicRect, LogicVec2};
 use serde::{Deserialize, Serialize};
 
 /// Position component
@@ -158,10 +158,10 @@ impl Default for FighterState {
 /// Hit type for attack classification
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum HitType {
-    High,   // Standing guard only
-    Mid,    // Standing or crouching guard
-    Low,    // Crouching guard only
-    Throw,  // Unblockable
+    High,  // Standing guard only
+    Mid,   // Standing or crouching guard
+    Low,   // Crouching guard only
+    Throw, // Unblockable
 }
 
 /// Hitbox (attack box)

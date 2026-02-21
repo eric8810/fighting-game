@@ -1,0 +1,60 @@
+// Standing light punch - fast poke
+// Startup 3 / Active 3 / Recovery 6 = 12 total frames
+(
+    id: "ryu_stand_lp",
+    name: "Standing Light Punch",
+    startup: 3,
+    active: 3,
+    recovery: 6,
+    total_frames: 12,
+    damage: 400,
+    stun_damage: 30,
+    gauge_gain_on_hit: 5,
+    gauge_gain_on_block: 3,
+    on_hit_advantage: 3,
+    on_block_advantage: 1,
+    cancel_windows: [
+        (start: 4, end: 6, into: ["special", "super"]),
+    ],
+    frames: [
+        (
+            frame_range: (start: 1, end: 3),
+            hitboxes: [],
+            hurtboxes: [
+                (rect: (x: -2000, y: 0, w: 4000, h: 8000)),
+                (rect: (x: 1000, y: -5000, w: 3000, h: 2000)),
+            ],
+            pushbox: (rect: (x: -1500, y: 0, w: 3000, h: 8000)),
+        ),
+        (
+            frame_range: (start: 4, end: 6),
+            hitboxes: [
+                (
+                    rect: (x: 1500, y: -5500, w: 4000, h: 2000),
+                    damage: 400,
+                    hitstun: 10,
+                    blockstun: 8,
+                    knockback: (x: 5000, y: 0),
+                    hit_type: "mid",
+                ),
+            ],
+            hurtboxes: [
+                (rect: (x: -2000, y: 0, w: 4000, h: 8000)),
+                (rect: (x: 1000, y: -5500, w: 4500, h: 2000)),
+            ],
+            pushbox: (rect: (x: -1500, y: 0, w: 3000, h: 8000)),
+        ),
+        (
+            frame_range: (start: 7, end: 12),
+            hitboxes: [],
+            hurtboxes: [
+                (rect: (x: -2000, y: 0, w: 4000, h: 8000)),
+            ],
+            pushbox: (rect: (x: -1500, y: 0, w: 3000, h: 8000)),
+        ),
+    ],
+    animation: "ryu_stand_lp_anim",
+    hit_effect: "spark_light",
+    hit_sound: "hit_light_01",
+    block_sound: "block_01",
+)

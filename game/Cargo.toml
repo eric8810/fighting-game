@@ -6,3 +6,14 @@ authors.workspace = true
 license.workspace = true
 
 [dependencies]
+tickle_core = { path = "../crates/tickle_core" }
+tickle_render = { path = "../crates/tickle_render" }
+hecs = { workspace = true }
+winit = { workspace = true }
+wgpu = { workspace = true }
+bytemuck = { workspace = true }
+glam = { workspace = true }
+pollster = "0.4"
+log = { workspace = true }
+env_logger = { workspace = true }
+anyhow = { workspace = true }

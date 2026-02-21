@@ -6,3 +6,15 @@ authors.workspace = true
 license.workspace = true
 
 [dependencies]
+wgpu = { workspace = true }
+winit = { workspace = true }
+bytemuck = { workspace = true }
+glam = { workspace = true }
+image = { workspace = true }
+anyhow = { workspace = true }
+log = { workspace = true }
+tickle_core = { path = "../tickle_core" }
+
+[dev-dependencies]
+pollster = "0.4"
+env_logger = { workspace = true }

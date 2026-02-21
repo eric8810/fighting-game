@@ -1,0 +1,21 @@
+{
+    "texture": "test_fighter.png",
+    "frame_width": 64,
+    "frame_height": 64,
+    "sprites": {
+        "idle": { "x": 0, "y": 0, "w": 64, "h": 64 },
+        "punch": { "x": 64, "y": 0, "w": 64, "h": 64 }
+    },
+    "animations": {
+        "idle": {
+            "frames": ["idle"],
+            "frame_duration": 8,
+            "looping": true
+        },
+        "punch": {
+            "frames": ["punch"],
+            "frame_duration": 4,
+            "looping": false
+        }
+    }
+}

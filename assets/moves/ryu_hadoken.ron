@@ -1,0 +1,62 @@
+// Hadoken move data for Tickle Fighting Engine
+// Frame data system: startup -> active -> recovery
+// All coordinates in logic units (1/100 pixel)
+(
+    id: "ryu_hadoken",
+    name: "Hadoken",
+    startup: 6,
+    active: 4,
+    recovery: 18,
+    total_frames: 28,
+    damage: 1200,
+    stun_damage: 80,
+    gauge_gain_on_hit: 20,
+    gauge_gain_on_block: 10,
+    on_hit_advantage: 2,
+    on_block_advantage: -4,
+    cancel_windows: [
+        (start: 7, end: 12, into: ["super"]),
+    ],
+    frames: [
+        // Startup frames (1-6): no hitboxes, vulnerable hurtbox
+        (
+            frame_range: (start: 1, end: 6),
+            hitboxes: [],
+            hurtboxes: [
+                (rect: (x: -2000, y: 0, w: 4000, h: 8000)),
+            ],
+            pushbox: (rect: (x: -1500, y: 0, w: 3000, h: 8000)),
+        ),
+        // Active frames (7-10): hitbox active, projectile spawns
+        (
+            frame_range: (start: 7, end: 10),
+            hitboxes: [
+                (
+                    rect: (x: 2000, y: -5000, w: 6000, h: 3000),
+                    damage: 1200,
+                    hitstun: 18,
+                    blockstun: 12,
+                    knockback: (x: 30000, y: 0),
+                    hit_type: "mid",
+                ),
+            ],
+            hurtboxes: [
+                (rect: (x: -2000, y: 0, w: 4000, h: 8000)),
+            ],
+            pushbox: (rect: (x: -1500, y: 0, w: 3000, h: 8000)),
+        ),
+        // Recovery frames (11-28): no hitboxes, vulnerable
+        (
+            frame_range: (start: 11, end: 28),
+            hitboxes: [],
+            hurtboxes: [
+                (rect: (x: -2000, y: 0, w: 4000, h: 8000)),
+            ],
+            pushbox: (rect: (x: -1500, y: 0, w: 3000, h: 8000)),
+        ),
+    ],
+    animation: "ryu_hadoken_anim",
+    hit_effect: "spark_medium",
+    hit_sound: "hit_medium_01",
+    block_sound: "block_01",
+)
