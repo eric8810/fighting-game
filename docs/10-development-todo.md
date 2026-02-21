@@ -8,7 +8,7 @@
 ## 阶段 0：项目初始化
 
 ### 0.1 项目结构搭建
-- [ ] 创建 Cargo workspace 结构
+- [x] 创建 Cargo workspace 结构
   ```
   tickle/
   ├── Cargo.toml (workspace)
@@ -21,7 +21,7 @@
   ├── game/                 # 游戏主程序
   └── tools/                # 工具（帧数据编辑器）
   ```
-- [ ] 配置 `Cargo.toml` 依赖
+- [x] 配置 `Cargo.toml` 依赖
   ```toml
   [workspace]
   members = ["crates/*", "game"]
@@ -36,11 +36,11 @@
   ron = "0.8"
   bytemuck = { version = "1.14", features = ["derive"] }
   ```
-- [ ] 设置 `.gitignore`（target/, assets/temp/, *.log）
-- [ ] 初始化 Git 仓库
+- [x] 设置 `.gitignore`（target/, assets/temp/, *.log）
+- [x] 初始化 Git 仓库
 
 ### 0.2 开发环境配置
-- [ ] 安装 Rust 工具链（rustup, cargo-watch, cargo-flamegraph）
+- [x] 安装 Rust 工具链（rustup, cargo-watch, cargo-flamegraph）
 - [ ] 配置 VSCode / RustRover IDE
 - [ ] 安装 wgpu 依赖（Vulkan SDK / Metal）
 - [ ] 验证跨平台编译（cargo build --target wasm32-unknown-unknown）
