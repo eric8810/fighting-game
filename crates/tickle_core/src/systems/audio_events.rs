@@ -45,9 +45,9 @@ pub fn audio_events_from_hits(hit_events: &[HitEvent]) -> Vec<GameAudioEvent> {
 pub fn audio_event_from_state_change(new_state: StateType) -> Option<GameAudioEvent> {
     // Only certain state transitions produce sounds
     match new_state {
-        StateType::Hitstun | StateType::Blockstun => Some(GameAudioEvent::StateChangeSound {
-            new_state,
-        }),
+        StateType::Hitstun | StateType::Blockstun => {
+            Some(GameAudioEvent::StateChangeSound { new_state })
+        }
         _ => None,
     }
 }

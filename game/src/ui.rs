@@ -105,8 +105,7 @@ impl PlayerUI {
             if self.drain_delay > 0 {
                 self.drain_delay -= 1;
             } else {
-                self.drain_hp = (self.drain_hp - HEALTH_DRAIN_SPEED)
-                    .max(self.display_hp);
+                self.drain_hp = (self.drain_hp - HEALTH_DRAIN_SPEED).max(self.display_hp);
             }
         } else {
             self.drain_hp = self.display_hp;
@@ -261,11 +260,8 @@ impl UIRenderer {
             );
         }
         if let Some(g) = p2_gauge {
-            let p2_gx = screen_w - 20.0 * sx
-                - (gauge_stock_w * 3.0 + gauge_gap * 2.0);
-            self.render_power_gauge(
-                &mut quads, g, p2_gx, GAUGE_Y, gauge_stock_w, gauge_gap,
-            );
+            let p2_gx = screen_w - 20.0 * sx - (gauge_stock_w * 3.0 + gauge_gap * 2.0);
+            self.render_power_gauge(&mut quads, g, p2_gx, GAUGE_Y, gauge_stock_w, gauge_gap);
         }
 
         // --- Round timer ---
@@ -278,6 +274,7 @@ impl UIRenderer {
         quads
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn render_health_bar(
         &self,
         quads: &mut Vec<QuadInstance>,
@@ -312,7 +309,7 @@ impl UIRenderer {
                 color
             };
             // Flash effect: alternate visibility.
-            let visible = player.flash_timer == 0 || player.flash_timer % 2 == 0;
+            let visible = player.flash_timer == 0 || player.flash_timer.is_multiple_of(2);
             if visible {
                 quads.push(QuadInstance {
                     rect: [x, y, hp_w, HEALTH_BAR_H],
@@ -346,8 +343,8 @@ impl UIRenderer {
         gap: f32,
     ) {
         let stocks = gauge.stocks();
-        let partial = (gauge.current % PowerGauge::STOCK_SIZE) as f32
-            / PowerGauge::STOCK_SIZE as f32;
+        let partial =
+            (gauge.current % PowerGauge::STOCK_SIZE) as f32 / PowerGauge::STOCK_SIZE as f32;
 
         for i in 0..3 {
             let sx = x + (stock_w + gap) * i as f32;
@@ -403,7 +400,14 @@ impl UIRenderer {
     }
 
     /// Render a single digit as a simple seven-segment-style display using quads.
-    fn render_digit(&self, quads: &mut Vec<QuadInstance>, digit: u32, x: f32, y: f32, color: [f32; 4]) {
+    fn render_digit(
+        &self,
+        quads: &mut Vec<QuadInstance>,
+        digit: u32,
+        x: f32,
+        y: f32,
+        color: [f32; 4],
+    ) {
         // Segments: top, top-left, top-right, middle, bot-left, bot-right, bottom
         // Each segment is a thin rectangle.
         let w = TIMER_DIGIT_W;
@@ -413,13 +417,13 @@ impl UIRenderer {
 
         // Segment definitions: (x_off, y_off, w, h)
         let segments: [(f32, f32, f32, f32); 7] = [
-            (0.0, 0.0, w, seg),                // 0: top
-            (0.0, 0.0, seg, half),              // 1: top-left
-            (w - seg, 0.0, seg, half),          // 2: top-right
-            (0.0, half - seg / 2.0, w, seg),    // 3: middle
-            (0.0, half, seg, half),             // 4: bot-left
-            (w - seg, half, seg, half),         // 5: bot-right
-            (0.0, h - seg, w, seg),             // 6: bottom
+            (0.0, 0.0, w, seg),              // 0: top
+            (0.0, 0.0, seg, half),           // 1: top-left
+            (w - seg, 0.0, seg, half),       // 2: top-right
+            (0.0, half - seg / 2.0, w, seg), // 3: middle
+            (0.0, half, seg, half),          // 4: bot-left
+            (w - seg, half, seg, half),      // 5: bot-right
+            (0.0, h - seg, w, seg),          // 6: bottom
         ];
 
         // Which segments are on for each digit (0-9).

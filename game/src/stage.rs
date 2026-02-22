@@ -2,6 +2,7 @@ use serde::Deserialize;
 
 /// A single parallax background layer.
 #[derive(Clone, Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct ParallaxLayer {
     /// Identifier / texture path for this layer.
     pub texture: String,
@@ -39,6 +40,7 @@ pub struct StageBoundaries {
 
 /// Camera limits derived from stage width.
 #[derive(Clone, Copy, Debug)]
+#[allow(dead_code)]
 pub struct CameraLimits {
     pub min_x: f32,
     pub max_x: f32,
@@ -46,6 +48,7 @@ pub struct CameraLimits {
 
 /// Complete stage definition, loadable from RON.
 #[derive(Clone, Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct StageData {
     pub name: String,
     /// Total stage width in logic coordinates.
@@ -69,10 +72,10 @@ pub struct Stage {
 impl Stage {
     /// Load a stage from a RON file path.
     pub fn load_from_file(path: &str) -> Result<Self, StageLoadError> {
-        let contents = std::fs::read_to_string(path)
-            .map_err(|e| StageLoadError::Io(path.to_string(), e))?;
-        let data: StageData = ron::from_str(&contents)
-            .map_err(|e| StageLoadError::Parse(path.to_string(), e))?;
+        let contents =
+            std::fs::read_to_string(path).map_err(|e| StageLoadError::Io(path.to_string(), e))?;
+        let data: StageData =
+            ron::from_str(&contents).map_err(|e| StageLoadError::Parse(path.to_string(), e))?;
         Ok(Self::from_data(data))
     }
 

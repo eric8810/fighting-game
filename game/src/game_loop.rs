@@ -167,7 +167,11 @@ impl GameLoop {
     /// Variant of [`tick`](Self::tick) that accepts an explicit
     /// `frame_time` instead of measuring wall-clock time. Useful for
     /// deterministic testing and replay.
-    pub fn tick_with_dt<T>(&mut self, frame_time: f64, mut logic_update: impl FnMut() -> T) -> TickResult<T> {
+    pub fn tick_with_dt<T>(
+        &mut self,
+        frame_time: f64,
+        mut logic_update: impl FnMut() -> T,
+    ) -> TickResult<T> {
         let frame_time = frame_time.min(MAX_FRAME_TIME);
         self.accumulator += frame_time;
 

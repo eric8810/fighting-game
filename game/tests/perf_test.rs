@@ -24,18 +24,30 @@ struct Player2;
 fn spawn_fighters(world: &mut World) {
     world.spawn((
         Player1,
-        Position { pos: LogicVec2::from_pixels(200, 0) },
-        PreviousPosition { pos: LogicVec2::from_pixels(200, 0) },
-        Velocity { vel: LogicVec2::ZERO },
+        Position {
+            pos: LogicVec2::from_pixels(200, 0),
+        },
+        PreviousPosition {
+            pos: LogicVec2::from_pixels(200, 0),
+        },
+        Velocity {
+            vel: LogicVec2::ZERO,
+        },
         Facing { dir: Facing::RIGHT },
         StateMachine::new(),
         Health::new(10_000),
     ));
     world.spawn((
         Player2,
-        Position { pos: LogicVec2::from_pixels(600, 0) },
-        PreviousPosition { pos: LogicVec2::from_pixels(600, 0) },
-        Velocity { vel: LogicVec2::ZERO },
+        Position {
+            pos: LogicVec2::from_pixels(600, 0),
+        },
+        PreviousPosition {
+            pos: LogicVec2::from_pixels(600, 0),
+        },
+        Velocity {
+            vel: LogicVec2::ZERO,
+        },
         Facing { dir: Facing::RIGHT },
         StateMachine::new(),
         Health::new(10_000),
@@ -95,17 +107,17 @@ fn apply_input(vel: &mut Velocity, sm: &mut StateMachine, input: &InputState) {
 fn generate_input_sequence(frame: usize) -> (InputState, InputState) {
     let cycle = frame % 240; // 4-second cycle at 60fps
     let p1 = match cycle {
-        0..=29 => InputState::new(0, Direction::Right),       // walk right
-        30..=59 => InputState::new(0, Direction::Left),       // walk left
-        60..=64 => InputState::new(0, Direction::Up),         // jump
-        65..=89 => InputState::EMPTY,                         // idle (airborne)
+        0..=29 => InputState::new(0, Direction::Right), // walk right
+        30..=59 => InputState::new(0, Direction::Left), // walk left
+        60..=64 => InputState::new(0, Direction::Up),   // jump
+        65..=89 => InputState::EMPTY,                   // idle (airborne)
         90..=94 => InputState::new(BUTTON_A, Direction::Neutral), // attack
-        95..=119 => InputState::EMPTY,                        // idle
-        120..=149 => InputState::new(0, Direction::Right),    // walk right
-        150..=154 => InputState::new(0, Direction::Up),       // jump
-        155..=179 => InputState::EMPTY,                       // idle
-        180..=209 => InputState::new(0, Direction::Down),     // crouch
-        _ => InputState::EMPTY,                               // idle
+        95..=119 => InputState::EMPTY,                  // idle
+        120..=149 => InputState::new(0, Direction::Right), // walk right
+        150..=154 => InputState::new(0, Direction::Up), // jump
+        155..=179 => InputState::EMPTY,                 // idle
+        180..=209 => InputState::new(0, Direction::Down), // crouch
+        _ => InputState::EMPTY,                         // idle
     };
     // P2 does the mirror
     let p2 = match cycle {
@@ -170,7 +182,14 @@ fn run_perf_test(frame_count: usize) -> PerfStats {
     let p99_idx = (frame_count as f64 * 0.99) as usize;
     let p99 = timings[p99_idx.min(frame_count - 1)];
 
-    PerfStats { total, min, max, mean, p99, frame_count }
+    PerfStats {
+        total,
+        min,
+        max,
+        mean,
+        p99,
+        frame_count,
+    }
 }
 
 #[test]
@@ -271,7 +290,10 @@ fn test_fixed_timestep_determinism() {
         .map(|(_, p)| p.pos)
         .collect();
 
-    assert_eq!(positions1, positions2, "Determinism violation: positions diverged after 600 frames");
+    assert_eq!(
+        positions1, positions2,
+        "Determinism violation: positions diverged after 600 frames"
+    );
     println!("\n=== Determinism Test ===");
     println!("600 frames with identical inputs -> identical positions (deterministic)");
 }
@@ -293,8 +315,14 @@ fn test_fixed_timestep_accumulator() {
     }
 
     println!("\n=== 240Hz Render Accumulator Test ===");
-    println!("960 render frames at 240Hz -> {} logic updates", logic_count);
-    assert_eq!(logic_count, 240, "Expected 240 logic updates for 4s at 60Hz");
+    println!(
+        "960 render frames at 240Hz -> {} logic updates",
+        logic_count
+    );
+    assert_eq!(
+        logic_count, 240,
+        "Expected 240 logic updates for 4s at 60Hz"
+    );
 }
 
 #[test]
@@ -308,9 +336,15 @@ fn test_ecs_query_overhead() {
         for i in 0..count {
             let x = (i as i32) * 10000;
             world.spawn((
-                Position { pos: LogicVec2::new(x, 0) },
-                PreviousPosition { pos: LogicVec2::new(x, 0) },
-                Velocity { vel: LogicVec2::ZERO },
+                Position {
+                    pos: LogicVec2::new(x, 0),
+                },
+                PreviousPosition {
+                    pos: LogicVec2::new(x, 0),
+                },
+                Velocity {
+                    vel: LogicVec2::ZERO,
+                },
                 Facing { dir: Facing::RIGHT },
                 StateMachine::new(),
                 Health::new(10_000),

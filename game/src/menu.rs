@@ -77,6 +77,7 @@ const ROUND_END_FREEZE_FRAMES: u32 = 120; // 2 seconds at 60 FPS
 // MenuSystem
 // ---------------------------------------------------------------------------
 
+#[allow(dead_code)]
 pub struct MenuSystem {
     pub game_state: GameState,
     pub game_mode: GameMode,
@@ -99,6 +100,7 @@ pub struct MenuSystem {
     pub quit_requested: bool,
 }
 
+#[allow(dead_code)]
 impl MenuSystem {
     pub fn new() -> Self {
         Self {
@@ -593,7 +595,13 @@ mod tests {
         // Simulate: P2 KO'd
         let mut world = World::new();
         world.spawn((Player1, Health::new(5000)));
-        world.spawn((Player2, Health { current: 0, max: 10000 }));
+        world.spawn((
+            Player2,
+            Health {
+                current: 0,
+                max: 10000,
+            },
+        ));
         let ui = UIRenderer::new();
 
         ms.update_round(&world, &ui);
@@ -614,7 +622,7 @@ mod tests {
         // Tick down the freeze timer.
         assert!(!ms.update_round(&world, &ui)); // timer 2->1
         assert!(!ms.update_round(&world, &ui)); // timer 1->0
-        // Timer hits 0, awards win and starts next round.
+                                                // Timer hits 0, awards win and starts next round.
         let reset = ms.update_round(&world, &ui);
         assert!(reset);
         assert_eq!(ms.p1_wins, 1);
@@ -632,11 +640,17 @@ mod tests {
         // P2 KO'd again.
         let mut world = World::new();
         world.spawn((Player1, Health::new(5000)));
-        world.spawn((Player2, Health { current: 0, max: 10000 }));
+        world.spawn((
+            Player2,
+            Health {
+                current: 0,
+                max: 10000,
+            },
+        ));
         let ui = UIRenderer::new();
 
         ms.update_round(&world, &ui); // enters RoundEnd
-        // Burn through freeze timer.
+                                      // Burn through freeze timer.
         ms.round_end_timer = 0;
         ms.update_round(&world, &ui); // awards win, checks match
         assert_eq!(ms.p1_wins, 2);
@@ -663,8 +677,20 @@ mod tests {
         ms.training_infinite_hp = true;
 
         let mut world = World::new();
-        world.spawn((Player1, Health { current: 0, max: 10000 }));
-        world.spawn((Player2, Health { current: 0, max: 10000 }));
+        world.spawn((
+            Player1,
+            Health {
+                current: 0,
+                max: 10000,
+            },
+        ));
+        world.spawn((
+            Player2,
+            Health {
+                current: 0,
+                max: 10000,
+            },
+        ));
         let ui = UIRenderer::new();
 
         ms.update_round(&world, &ui);

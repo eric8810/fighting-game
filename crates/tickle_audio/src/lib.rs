@@ -13,10 +13,7 @@ pub enum AudioError {
     #[error("failed to initialize audio manager: {0}")]
     InitError(String),
     #[error("failed to load sound '{path}': {source}")]
-    LoadError {
-        path: String,
-        source: anyhow::Error,
-    },
+    LoadError { path: String, source: anyhow::Error },
     #[error("failed to play sound '{0}': {1}")]
     PlayError(String, String),
     #[error("sound not found: '{0}'")]
@@ -76,8 +73,8 @@ impl AudioSystem {
     /// is relative to the assets root (e.g. "sounds/hit_light.ogg").
     pub fn load_sound(&mut self, id: &str, relative_path: &str) -> AudioResult<()> {
         let full_path = self.assets_root.join(relative_path);
-        let sound_data = StaticSoundData::from_file(&full_path)
-            .map_err(|e| AudioError::LoadError {
+        let sound_data =
+            StaticSoundData::from_file(&full_path).map_err(|e| AudioError::LoadError {
                 path: full_path.display().to_string(),
                 source: e.into(),
             })?;

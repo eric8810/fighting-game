@@ -99,9 +99,7 @@ impl StateMachine {
     pub fn try_transition(&mut self, input: &InputState) -> Option<StateType> {
         let desired = match self.state.current_state {
             StateType::Idle => self.transitions_from_idle(input),
-            StateType::WalkForward | StateType::WalkBackward => {
-                self.transitions_from_walk(input)
-            }
+            StateType::WalkForward | StateType::WalkBackward => self.transitions_from_walk(input),
             StateType::Run => self.transitions_from_run(input),
             StateType::Crouch => self.transitions_from_crouch(input),
             StateType::Jump => self.transitions_from_jump(input),
@@ -246,14 +244,12 @@ impl StateMachine {
 
     fn transitions_from_attack(&self, input: &InputState) -> Option<StateType> {
         // Can only cancel during cancel windows
-        if self.in_cancel_window(CancelTarget::Normal) || self.in_cancel_window(CancelTarget::Any)
-        {
-            if input.is_pressed(BUTTON_A)
+        if (self.in_cancel_window(CancelTarget::Normal) || self.in_cancel_window(CancelTarget::Any))
+            && (input.is_pressed(BUTTON_A)
                 || input.is_pressed(BUTTON_B)
-                || input.is_pressed(BUTTON_C)
-            {
-                return Some(StateType::Attack(0));
-            }
+                || input.is_pressed(BUTTON_C))
+        {
+            return Some(StateType::Attack(0));
         }
         None
     }

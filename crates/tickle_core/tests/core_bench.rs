@@ -52,12 +52,20 @@ fn bench_physics_systems() {
     // velocity_system with 2 entities
     let mut entities = [
         (
-            Position { pos: LogicVec2::new(20000, 5000) },
-            Velocity { vel: LogicVec2::new(400, -80) },
+            Position {
+                pos: LogicVec2::new(20000, 5000),
+            },
+            Velocity {
+                vel: LogicVec2::new(400, -80),
+            },
         ),
         (
-            Position { pos: LogicVec2::new(60000, 0) },
-            Velocity { vel: LogicVec2::new(-400, 0) },
+            Position {
+                pos: LogicVec2::new(60000, 0),
+            },
+            Velocity {
+                vel: LogicVec2::new(-400, 0),
+            },
         ),
     ];
     bench("velocity_system (2 entities)", ITERATIONS, || {
@@ -70,12 +78,20 @@ fn bench_physics_systems() {
     // gravity_system with 2 entities
     let mut grav_entities = [
         (
-            Position { pos: LogicVec2::new(0, 5000) },
-            Velocity { vel: LogicVec2::new(0, 0) },
+            Position {
+                pos: LogicVec2::new(0, 5000),
+            },
+            Velocity {
+                vel: LogicVec2::new(0, 0),
+            },
         ),
         (
-            Position { pos: LogicVec2::new(0, GROUND_Y) },
-            Velocity { vel: LogicVec2::new(0, 0) },
+            Position {
+                pos: LogicVec2::new(0, GROUND_Y),
+            },
+            Velocity {
+                vel: LogicVec2::new(0, 0),
+            },
         ),
     ];
     bench("gravity_system (2 entities)", ITERATIONS, || {
@@ -86,12 +102,20 @@ fn bench_physics_systems() {
     // friction_system with 2 entities
     let mut fric_entities = [
         (
-            Position { pos: LogicVec2::new(0, GROUND_Y) },
-            Velocity { vel: LogicVec2::new(400, 0) },
+            Position {
+                pos: LogicVec2::new(0, GROUND_Y),
+            },
+            Velocity {
+                vel: LogicVec2::new(400, 0),
+            },
         ),
         (
-            Position { pos: LogicVec2::new(0, GROUND_Y) },
-            Velocity { vel: LogicVec2::new(-400, 0) },
+            Position {
+                pos: LogicVec2::new(0, GROUND_Y),
+            },
+            Velocity {
+                vel: LogicVec2::new(-400, 0),
+            },
         ),
     ];
     bench("friction_system (2 entities)", ITERATIONS, || {
@@ -102,8 +126,12 @@ fn bench_physics_systems() {
 
     // ground_detection_system
     let mut gd_entities = [(
-        Position { pos: LogicVec2::new(0, -100) },
-        Velocity { vel: LogicVec2::new(0, -200) },
+        Position {
+            pos: LogicVec2::new(0, -100),
+        },
+        Velocity {
+            vel: LogicVec2::new(0, -200),
+        },
         FighterState::new(),
     )];
     gd_entities[0].2.change_state(StateType::Jump);
@@ -133,9 +161,13 @@ fn bench_collision_system() {
                 knockback: LogicVec2::new(5000, 0),
                 hit_type: HitType::Mid,
             });
-            hm.add_hurtbox(Hurtbox { rect: LogicRect::new(-2000, -8000, 4000, 8000) });
+            hm.add_hurtbox(Hurtbox {
+                rect: LogicRect::new(-2000, -8000, 4000, 8000),
+            });
             CollisionEntity {
-                position: Position { pos: LogicVec2::new(x, 0) },
+                position: Position {
+                    pos: LogicVec2::new(x, 0),
+                },
                 facing: Facing { dir: Facing::RIGHT },
                 hitbox_manager: hm,
             }
@@ -161,9 +193,13 @@ fn bench_collision_system() {
                 knockback: LogicVec2::new(5000, 0),
                 hit_type: HitType::Mid,
             });
-            hm.add_hurtbox(Hurtbox { rect: LogicRect::new(-3000, -8000, 6000, 8000) });
+            hm.add_hurtbox(Hurtbox {
+                rect: LogicRect::new(-3000, -8000, 6000, 8000),
+            });
             CollisionEntity {
-                position: Position { pos: LogicVec2::new(x, 0) },
+                position: Position {
+                    pos: LogicVec2::new(x, 0),
+                },
                 facing: Facing { dir: Facing::RIGHT },
                 hitbox_manager: hm,
             }
@@ -201,7 +237,9 @@ fn bench_combat_system() {
         let mut defender = CombatEntity {
             health: Health::new(10000),
             power_gauge: PowerGauge::new(),
-            velocity: Velocity { vel: LogicVec2::ZERO },
+            velocity: Velocity {
+                vel: LogicVec2::ZERO,
+            },
             state: FighterState::new(),
             combo_count: 1,
         };

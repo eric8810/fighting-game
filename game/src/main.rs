@@ -9,15 +9,17 @@ use std::sync::Arc;
 
 use hecs::World;
 use tickle_audio::{
-    AudioEvent, AudioSystem, HitStrength, load_default_music, load_default_sounds,
-    process_audio_events,
+    load_default_music, load_default_sounds, process_audio_events, AudioEvent, AudioSystem,
+    HitStrength,
 };
+use tickle_core::systems::audio_events::{
+    audio_events_from_hits, GameAudioEvent, HitSoundStrength,
+};
+use tickle_core::systems::collision::HitEvent;
 use tickle_core::{
-    Direction, Facing, Health, Hitbox, HitType, InputState, LogicRect, LogicVec2, Position,
+    Direction, Facing, Health, HitType, Hitbox, InputState, LogicRect, LogicVec2, Position,
     PowerGauge, PreviousPosition, StateMachine, StateType, Velocity, BUTTON_A,
 };
-use tickle_core::systems::audio_events::{audio_events_from_hits, GameAudioEvent, HitSoundStrength};
-use tickle_core::systems::collision::HitEvent;
 use tickle_render::RenderContext;
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, WindowEvent};
@@ -531,8 +533,16 @@ impl App {
                 }
 
                 let state_changes = (
-                    if p1_pre != p1_post { Some(p1_post) } else { None },
-                    if p2_pre != p2_post { Some(p2_post) } else { None },
+                    if p1_pre != p1_post {
+                        Some(p1_post)
+                    } else {
+                        None
+                    },
+                    if p2_pre != p2_post {
+                        Some(p2_post)
+                    } else {
+                        None
+                    },
                 );
                 *prev_states = (p1_post, p2_post);
 
@@ -637,7 +647,10 @@ impl App {
         let camera_x = self.stage.camera_x;
 
         // Stage background layers (rendered behind everything).
-        instances.extend(self.stage.render_layers(screen_w, screen_h, ground_screen_y));
+        instances.extend(
+            self.stage
+                .render_layers(screen_w, screen_h, ground_screen_y),
+        );
 
         // Ground line (scrolls with camera).
         instances.push(QuadInstance {
@@ -646,7 +659,8 @@ impl App {
         });
 
         // Fighters.
-        for (_, (pos, prev, _facing, _hp, color)) in self.world
+        for (_, (pos, prev, _facing, _hp, color)) in self
+            .world
             .query::<(
                 &Position,
                 &PreviousPosition,

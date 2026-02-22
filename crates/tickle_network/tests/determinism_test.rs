@@ -1,14 +1,13 @@
+use tickle_core::systems::physics::{DEFAULT_FRICTION, DEFAULT_GRAVITY, GROUND_Y};
 /// Determinism verification tests for the Tickle Fighting Engine.
 ///
 /// These tests ensure that running the same input sequence twice produces
 /// identical game state, which is the fundamental requirement for rollback
 /// networking.
 use tickle_core::{
-    Direction, Facing, Health, HitboxManager, InputBuffer, InputState, LogicRect,
-    LogicVec2, Position, PowerGauge, PreviousPosition, Pushbox, StateMachine, StateType, Velocity,
-    BUTTON_A,
+    Direction, Facing, Health, HitboxManager, InputBuffer, InputState, LogicRect, LogicVec2,
+    Position, PowerGauge, PreviousPosition, Pushbox, StateMachine, StateType, Velocity, BUTTON_A,
 };
-use tickle_core::systems::physics::{DEFAULT_FRICTION, DEFAULT_GRAVITY, GROUND_Y};
 use tickle_network::snapshot::{FighterSnapshot, GameManagerSnapshot, GameSnapshot};
 use tickle_network::DeterministicRng;
 

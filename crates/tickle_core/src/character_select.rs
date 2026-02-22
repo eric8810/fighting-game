@@ -108,8 +108,6 @@ pub struct MoveData {
     pub block_sound: String,
 }
 
-/// PLACEHOLDER_CANCEL_CHAIN
-
 /// Cancel chain entry: defines what a move can cancel into.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CancelChainEntry {
@@ -166,8 +164,6 @@ fn default_power_gauge_max() -> i32 {
     3000
 }
 
-/// PLACEHOLDER_CHAR_PROPS
-
 /// Runtime character properties applied to a fighter entity.
 #[derive(Clone, Debug)]
 pub struct CharacterProperties {
@@ -223,8 +219,6 @@ impl CharacterProperties {
             .any(|chain| chain.from == from_move && chain.into.contains(&into_move.to_string()))
     }
 }
-
-/// PLACEHOLDER_LOADER
 
 /// Load character data from a RON file.
 pub fn load_character_data(path: &Path) -> Result<CharacterData, String> {
@@ -417,8 +411,7 @@ mod tests {
         write_test_move(&moves_dir, "test_move_lp", 400);
         write_test_move(&moves_dir, "test_move_hp", 1000);
 
-        let (props, _) =
-            load_character_with_moves(&chars_dir, &moves_dir, "test_char").unwrap();
+        let (props, _) = load_character_with_moves(&chars_dir, &moves_dir, "test_char").unwrap();
 
         // LP can cancel into HP
         assert!(props.can_cancel("test_move_lp", "test_move_hp"));
@@ -493,9 +486,24 @@ mod tests {
             pushbox_width: 3000,
             pushbox_height: 8000,
             power_gauge_max: 3000,
-            standing_hurtbox: RonRect { x: -2000, y: 0, w: 4000, h: 8000 },
-            crouching_hurtbox: RonRect { x: -2000, y: 0, w: 4500, h: 5000 },
-            jumping_hurtbox: RonRect { x: -1500, y: -1000, w: 3000, h: 6000 },
+            standing_hurtbox: RonRect {
+                x: -2000,
+                y: 0,
+                w: 4000,
+                h: 8000,
+            },
+            crouching_hurtbox: RonRect {
+                x: -2000,
+                y: 0,
+                w: 4500,
+                h: 5000,
+            },
+            jumping_hurtbox: RonRect {
+                x: -1500,
+                y: -1000,
+                w: 3000,
+                h: 6000,
+            },
             moves: vec!["ryu_stand_lp".to_string()],
             cancel_chains: vec![],
             animations: HashMap::new(),

@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use tickle_core::{
-    Facing, Health, HitboxManager, InputBuffer, Position, PowerGauge,
-    PreviousPosition, StateMachine, Velocity,
+    Facing, Health, HitboxManager, InputBuffer, Position, PowerGauge, PreviousPosition,
+    StateMachine, Velocity,
 };
 
 /// Complete snapshot of a single fighter's state.
@@ -37,6 +37,7 @@ pub struct GameSnapshot {
 }
 
 /// Extracts a FighterSnapshot from individual components.
+#[allow(clippy::too_many_arguments)]
 pub fn snapshot_fighter(
     position: &Position,
     previous_position: &PreviousPosition,
@@ -160,7 +161,9 @@ mod tests {
             rect: LogicRect::new(-1500, -8000, 3000, 8000),
         });
 
-        let snap = snapshot_fighter(&pos, &prev, &vel, &facing, &health, &gauge, &sm, &ib, &hm, 0);
+        let snap = snapshot_fighter(
+            &pos, &prev, &vel, &facing, &health, &gauge, &sm, &ib, &hm, 0,
+        );
         let (rp, rprev, rv, rf, rh, rg, rsm, rib, rhm, rc) = restore_fighter(&snap);
 
         assert_eq!(rp, pos);

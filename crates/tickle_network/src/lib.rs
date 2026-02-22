@@ -102,6 +102,7 @@ impl DeterministicRng {
     }
 
     /// Generate next pseudo-random u32.
+    #[allow(clippy::should_implement_trait)]
     pub fn next(&mut self) -> u32 {
         self.state = self
             .state
