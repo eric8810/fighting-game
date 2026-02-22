@@ -728,12 +728,13 @@ impl App {
         let mut fighter_instances: Vec<QuadInstance> = Vec::with_capacity(2);
 
         // Fighters.
-        for (_, (pos, prev, facing, _hp, color)) in self
+        for (_, (pos, prev, facing, sm, _hp, color)) in self
             .world
             .query::<(
                 &Position,
                 &PreviousPosition,
                 &Facing,
+                &StateMachine,
                 &Health,
                 &FighterColor,
             )>()
@@ -748,11 +749,62 @@ impl App {
             let screen_x = x - FIGHTER_W / 2.0 - camera_x;
             let screen_y = ground_screen_y - y - FIGHTER_H;
 
+            // Calculate UV coordinates based on animation state
+            let (u, v, uw, vh) = if self.use_sprites {
+                // Sprite sheet layout: 100x116 per frame, 6 columns
+                const FRAME_W: f32 = 100.0;
+                const FRAME_H: f32 = 116.0;
+                const TEXTURE_W: f32 = 600.0;
+                const TEXTURE_H: f32 = 654.0;
+
+                // Map state to animation row
+                let row = match sm.current_state() {
+                    StateType::Idle => 0,
+                    StateType::WalkForward => 1,
+                    StateType::WalkBackward => 2,
+                    StateType::Run => 1,
+                    StateType::Crouch => 4,
+                    StateType::Jump => 3,
+                    StateType::Attack(_) => 5,
+                    StateType::Hitstun => 7,
+                    StateType::Blockstun => 7,
+                    StateType::Knockdown => 8,
+                };
+
+                // Number of frames in this animation
+                let frames_in_row = match sm.current_state() {
+                    StateType::Idle => 4,
+                    StateType::WalkForward => 5,
+                    StateType::WalkBackward => 5,
+                    StateType::Run => 5,
+                    StateType::Crouch => 2,
+                    StateType::Jump => 6,
+                    StateType::Attack(_) => 5,
+                    StateType::Hitstun => 3,
+                    StateType::Blockstun => 3,
+                    StateType::Knockdown => 6,
+                };
+
+                // Calculate current frame (cycles through animation)
+                let frame = (sm.state.state_frame / 8) as i32 % frames_in_row;
+
+                // Calculate UV coordinates (normalized 0-1)
+                let u0 = (frame as f32 * FRAME_W) / TEXTURE_W;
+                let v0 = (row as f32 * FRAME_H) / TEXTURE_H;
+                let uw_norm = FRAME_W / TEXTURE_W;
+                let vh_norm = FRAME_H / TEXTURE_H;
+
+                (u0, v0, uw_norm, vh_norm)
+            } else {
+                // Default: full texture
+                (0.0, 0.0, 1.0, 1.0)
+            };
+
             // UV coordinates with horizontal flip based on facing direction
             let uv = if facing.dir == Facing::RIGHT {
-                [0.0, 0.0, 1.0, 1.0]  // Normal
+                [u, v, uw, vh]  // Normal
             } else {
-                [1.0, 0.0, -1.0, 1.0]  // Flipped horizontally (swap u and w)
+                [u + uw, v, -uw, vh]  // Flipped horizontally
             };
 
             fighter_instances.push(QuadInstance {
