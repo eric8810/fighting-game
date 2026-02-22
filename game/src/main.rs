@@ -2,7 +2,7 @@ pub mod game_loop;
 mod menu;
 mod quad_renderer;
 mod stage;
-#[allow(dead_code)]
+pub mod text_renderer;
 mod ui;
 
 use std::sync::Arc;
@@ -20,7 +20,7 @@ use tickle_core::{
     Direction, Facing, Health, HitType, Hitbox, InputState, LogicRect, LogicVec2, Position,
     PowerGauge, PreviousPosition, StateMachine, StateType, Velocity, BUTTON_A,
 };
-use tickle_render::RenderContext;
+use tickle_render::{RenderContext, Texture};
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
@@ -31,6 +31,7 @@ use game_loop::GameLoop;
 use menu::{GameState, MenuInput, MenuSystem};
 use quad_renderer::{QuadInstance, QuadRenderer};
 use stage::Stage;
+use text_renderer::{TextArea, TextRenderer};
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -90,6 +91,7 @@ impl RawInput {
 struct App {
     render_ctx: Option<RenderContext>,
     quad_renderer: Option<QuadRenderer>,
+    text_renderer: Option<TextRenderer>,
     window: Option<Arc<Window>>,
     world: World,
     game_loop: GameLoop,
@@ -99,12 +101,12 @@ struct App {
     audio: Option<AudioSystem>,
     stage: Stage,
     menu: MenuSystem,
-    /// Buffered menu input (consumed once per frame from key-down events).
     pending_menu_input: MenuInput,
-    /// Whether background music has been started for the current round.
     music_started: bool,
-    /// Previous frame state types for detecting state changes (P1, P2).
     prev_states: (StateType, StateType),
+    // Fighter sprites
+    fighter_texture: Option<Texture>,
+    use_sprites: bool,
 }
 
 impl App {
@@ -145,6 +147,7 @@ impl App {
         Self {
             render_ctx: None,
             quad_renderer: None,
+            text_renderer: None,
             window: None,
             world,
             game_loop: GameLoop::new(),
@@ -157,6 +160,8 @@ impl App {
             pending_menu_input: MenuInput::None,
             music_started: false,
             prev_states: (StateType::Idle, StateType::Idle),
+            fighter_texture: None,
+            use_sprites: false, // Will be set to true after texture loads
         }
     }
 }
@@ -206,19 +211,59 @@ fn spawn_fighters(world: &mut World) {
 
 impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        log::info!("resumed() called");
         if self.window.is_some() {
+            log::info!("Window already exists, skipping initialization");
             return;
         }
+        log::info!("Creating window...");
         let attrs = Window::default_attributes()
             .with_title("Tickle Fighting Engine")
             .with_inner_size(winit::dpi::LogicalSize::new(800, 600));
         let window = Arc::new(event_loop.create_window(attrs).unwrap());
+        log::info!("Window created successfully");
         self.window = Some(window.clone());
 
+        log::info!("Initializing render context...");
         let ctx = pollster::block_on(RenderContext::new(window)).unwrap();
+        log::info!("Render context initialized");
+
+        log::info!("Creating quad renderer...");
         let qr = QuadRenderer::new(&ctx.device, ctx.surface_format());
         self.quad_renderer = Some(qr);
+        log::info!("Quad renderer created");
+
+        log::info!("Creating text renderer...");
+        let tr = TextRenderer::new(&ctx.device, &ctx.queue, ctx.surface_format());
+        self.text_renderer = Some(tr);
+        log::info!("Text renderer created");
+
+        // Load fighter sprites before moving ctx
+        log::info!("Loading fighter sprites...");
+        let ryu_path = "./assets/sprites/fighters/ryu.png";
+        let fighter_texture = match std::fs::read(ryu_path) {
+            Ok(bytes) => {
+                match Texture::load_from_bytes(&ctx.device, &ctx.queue, &bytes, "ryu_texture") {
+                    Ok(texture) => {
+                        log::info!("Fighter sprites loaded successfully");
+                        Some(texture)
+                    }
+                    Err(e) => {
+                        log::warn!("Failed to create fighter texture: {}", e);
+                        None
+                    }
+                }
+            }
+            Err(e) => {
+                log::warn!("Failed to load fighter sprites: {}", e);
+                None
+            }
+        };
+        self.fighter_texture = fighter_texture;
+        self.use_sprites = self.fighter_texture.is_some();
+
         self.render_ctx = Some(ctx);
+        log::info!("All renderers initialized successfully");
     }
 
     fn window_event(
@@ -309,6 +354,7 @@ fn key_to_menu_input(key: KeyCode, menu: &MenuSystem) -> MenuInput {
             KeyCode::Escape => MenuInput::Pause,
             _ => MenuInput::None,
         },
+        GameState::RoundIntro => MenuInput::None,
         GameState::Paused => match key {
             KeyCode::KeyW | KeyCode::ArrowUp => MenuInput::Up,
             KeyCode::KeyS | KeyCode::ArrowDown => MenuInput::Down,
@@ -479,6 +525,10 @@ impl App {
             Some(q) => q,
             None => return,
         };
+        let tr = match self.text_renderer.as_mut() {
+            Some(t) => t,
+            None => return,
+        };
 
         // Process buffered menu input.
         let mi = std::mem::replace(&mut self.pending_menu_input, MenuInput::None);
@@ -521,6 +571,7 @@ impl App {
                 }
 
                 ui.update(world);
+                ui.set_wins(menu.p1_wins(), menu.p2_wins());
 
                 // Capture post-update states.
                 let mut p1_post = StateType::Idle;
@@ -553,7 +604,13 @@ impl App {
                 }
                 (hit_events, state_changes, new_round)
             } else {
-                (Vec::new(), (None, None), false)
+                // Still need to tick round-end timer even when logic is paused.
+                let new_round = menu.update_round(world, ui);
+                if new_round {
+                    MenuSystem::reset_fighters(world);
+                    ui.reset();
+                }
+                (Vec::new(), (None, None), new_round)
             }
         });
 
@@ -656,6 +713,7 @@ impl App {
         instances.push(QuadInstance {
             rect: [-camera_x, ground_screen_y, screen_w + camera_x * 2.0, 4.0],
             color: [0.3, 0.3, 0.3, 1.0],
+            ..Default::default()
         });
 
         // Fighters.
@@ -682,6 +740,7 @@ impl App {
             instances.push(QuadInstance {
                 rect: [screen_x, screen_y, FIGHTER_W, FIGHTER_H],
                 color: color.0,
+                uv: [0.0, 0.0, 1.0, 1.0], // Full texture
             });
         }
 
@@ -690,6 +749,14 @@ impl App {
 
         // Menu overlay (main menu, pause, round/match end).
         instances.extend(self.menu.render(screen_w, screen_h));
+
+        // Collect text areas.
+        let mut text_areas: Vec<TextArea> = Vec::new();
+        text_areas.extend(self.ui_renderer.render_text(&self.world, screen_w, screen_h));
+        text_areas.extend(self.menu.render_text(screen_w, screen_h));
+
+        // Prepare text renderer.
+        tr.prepare(&ctx.device, &ctx.queue, screen_w, screen_h, &text_areas);
 
         // Render.
         let output = match ctx.surface.get_current_texture() {
@@ -705,6 +772,7 @@ impl App {
                 label: Some("frame_encoder"),
             });
 
+        // Pass 1: quads (clears screen + draws all colored rectangles).
         qr.draw(
             &mut encoder,
             &view,
@@ -714,8 +782,30 @@ impl App {
             &instances,
         );
 
+        // Pass 2: text (LoadOp::Load - draws on top without clearing).
+        {
+            let mut text_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("text_pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &view,
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            });
+            tr.render(&mut text_pass);
+        }
+
         ctx.queue.submit(std::iter::once(encoder.finish()));
         output.present();
+        tr.trim_atlas();
     }
 }
 
@@ -756,9 +846,14 @@ impl NetworkMode {
 
 fn main() {
     env_logger::init();
+    log::info!("=== Tickle Fighting Engine Starting ===");
     let network_mode = NetworkMode::from_args();
     log::info!("Starting Tickle Fighting Engine in {:?} mode", network_mode);
+    log::info!("Creating event loop...");
     let event_loop = EventLoop::new().unwrap();
+    log::info!("Event loop created successfully");
     let mut app = App::new();
+    log::info!("App initialized, starting event loop...");
     event_loop.run_app(&mut app).unwrap();
+    log::info!("Event loop exited");
 }

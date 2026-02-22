@@ -1,11 +1,8 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use kira::manager::backend::DefaultBackend;
-use kira::manager::{AudioManager, AudioManagerSettings};
+use kira::{AudioManager, AudioManagerSettings, DefaultBackend, Decibels, Tween};
 use kira::sound::static_sound::{StaticSoundData, StaticSoundHandle, StaticSoundSettings};
-use kira::tween::Tween;
-use kira::Volume;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -40,9 +37,18 @@ impl Default for VolumeSettings {
     }
 }
 
+/// Convert linear amplitude (0.0–1.0) to decibels for kira 0.12+.
+fn amplitude_to_db(amplitude: f64) -> f32 {
+    if amplitude <= 0.0 {
+        f32::NEG_INFINITY
+    } else {
+        (20.0 * amplitude.log10()) as f32
+    }
+}
+
 /// Core audio system wrapping kira's AudioManager.
 pub struct AudioSystem {
-    manager: AudioManager,
+    manager: AudioManager<DefaultBackend>,
     sound_cache: HashMap<String, StaticSoundData>,
     current_music: Option<StaticSoundHandle>,
     current_music_id: Option<String>,
@@ -91,7 +97,7 @@ impl AudioSystem {
             .ok_or_else(|| AudioError::NotFound(id.to_string()))?;
 
         let effective_volume = self.volume.master * self.volume.sfx;
-        let settings = StaticSoundSettings::new().volume(Volume::Amplitude(effective_volume));
+        let settings = StaticSoundSettings::new().volume(Decibels(amplitude_to_db(effective_volume)));
         let data = sound_data.clone().with_settings(settings);
 
         let handle = self
@@ -114,7 +120,7 @@ impl AudioSystem {
             .ok_or_else(|| AudioError::NotFound(id.to_string()))?;
 
         let effective_volume = self.volume.master * self.volume.music;
-        let mut settings = StaticSoundSettings::new().volume(Volume::Amplitude(effective_volume));
+        let mut settings = StaticSoundSettings::new().volume(Decibels(amplitude_to_db(effective_volume)));
         if looping {
             settings = settings.loop_region(..);
         }
@@ -176,7 +182,7 @@ impl AudioSystem {
     fn update_music_volume(&mut self) {
         if let Some(ref mut handle) = self.current_music {
             let effective = self.volume.master * self.volume.music;
-            handle.set_volume(Volume::Amplitude(effective), Tween::default());
+            handle.set_volume(Decibels(amplitude_to_db(effective)), Tween::default());
         }
     }
 }

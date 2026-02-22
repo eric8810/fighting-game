@@ -7,6 +7,7 @@ members = [
     "crates/tickle_network",
     "crates/tickle_assets",
     "game",
+    "tools/game-test",
 ]
 
 [workspace.package]
@@ -20,11 +21,13 @@ license = "MIT"
 winit = "0.30"
 
 # Graphics
-wgpu = "23.0"
+wgpu = "28.0"
 bytemuck = { version = "1.14", features = ["derive"] }
+# Force windows 0.62 so gpu-allocator and wgpu-hal share the same type definitions
+windows = { version = "0.62", features = ["Win32_Graphics_Direct3D12", "Win32_Graphics_Dxgi_Common"] }
 
 # Audio
-kira = "0.9"
+kira = "0.12"
 
 # Networking
 ggrs = "0.10"

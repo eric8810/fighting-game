@@ -184,6 +184,7 @@ impl Stage {
             instances.push(crate::quad_renderer::QuadInstance {
                 rect: [offset_x - 100.0, y, layer_w, layer.height],
                 color: layer.color,
+                ..Default::default()
             });
         }
         instances

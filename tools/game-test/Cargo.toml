@@ -1,0 +1,15 @@
+[package]
+name = "game-test"
+version = "0.1.0"
+edition = "2021"
+description = "CLI tool for programmatic testing of Tickle Fighting Engine"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+enigo = "0.2"
+xcap = "0.0.14"
+image = { workspace = true }
+anyhow = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = ["Win32_UI_WindowsAndMessaging"] }

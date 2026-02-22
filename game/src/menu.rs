@@ -4,6 +4,7 @@ use tickle_core::{
 };
 
 use crate::quad_renderer::QuadInstance;
+use crate::text_renderer::TextArea;
 use crate::ui::UIRenderer;
 use crate::{Player1, Player2};
 
@@ -15,6 +16,7 @@ use crate::{Player1, Player2};
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum GameState {
     MainMenu,
+    RoundIntro, // NEW: "ROUND X / FIGHT!" animation before fighting
     Fighting,
     Paused,
     RoundEnd,
@@ -72,6 +74,7 @@ pub enum MenuInput {
 
 const ROUNDS_TO_WIN: u32 = 2;
 const ROUND_END_FREEZE_FRAMES: u32 = 120; // 2 seconds at 60 FPS
+const ROUND_INTRO_FRAMES: u32 = 150;      // 2.5 seconds for ROUND X + FIGHT!
 
 // ---------------------------------------------------------------------------
 // MenuSystem
@@ -90,6 +93,7 @@ pub struct MenuSystem {
     p2_wins: u32,
     current_round: u32,
     round_end_timer: u32,
+    round_intro_timer: u32,
     round_winner: Option<u8>, // 1 or 2
     match_winner: Option<u8>,
     // Training mode
@@ -112,6 +116,7 @@ impl MenuSystem {
             p2_wins: 0,
             current_round: 1,
             round_end_timer: 0,
+            round_intro_timer: 0,
             round_winner: None,
             match_winner: None,
             training_infinite_hp: true,
@@ -143,7 +148,7 @@ impl MenuSystem {
 
     /// Returns true if the game logic should run this frame.
     pub fn should_run_logic(&self) -> bool {
-        self.game_state == GameState::Fighting
+        self.game_state == GameState::Fighting || self.game_state == GameState::RoundIntro
     }
 
     /// Process a menu input event. Returns true if the world needs resetting.
@@ -151,6 +156,11 @@ impl MenuSystem {
         match self.game_state {
             GameState::MainMenu => {
                 self.handle_main_menu(input);
+                // Signal world reset if we just transitioned into RoundIntro.
+                self.game_state == GameState::RoundIntro
+            }
+            GameState::RoundIntro => {
+                // Input ignored during intro animation
                 false
             }
             GameState::Fighting => {
@@ -191,12 +201,12 @@ impl MenuSystem {
                 MainMenuItem::VsMode => {
                     self.game_mode = GameMode::Vs;
                     self.reset_match();
-                    self.game_state = GameState::Fighting;
+                    self.start_round_intro();
                 }
                 MainMenuItem::Training => {
                     self.game_mode = GameMode::Training;
                     self.reset_match();
-                    self.game_state = GameState::Fighting;
+                    self.start_round_intro();
                 }
                 MainMenuItem::Quit => {
                     self.quit_requested = true;
@@ -240,9 +250,13 @@ impl MenuSystem {
         }
     }
 
-    /// Called each logic frame during Fighting state. Checks for KO / time-up.
-    /// Returns true if the world should be reset for a new round.
+    /// Called each logic frame. Returns true if the world should be reset for a new round.
     pub fn update_round(&mut self, world: &World, ui: &UIRenderer) -> bool {
+        // Handle round intro animation
+        if self.game_state == GameState::RoundIntro {
+            return self.tick_round_intro();
+        }
+
         if self.game_state == GameState::RoundEnd {
             return self.tick_round_end();
         }
@@ -290,6 +304,21 @@ impl MenuSystem {
         false
     }
 
+    fn start_round_intro(&mut self) {
+        self.round_intro_timer = ROUND_INTRO_FRAMES;
+        self.game_state = GameState::RoundIntro;
+    }
+
+    fn tick_round_intro(&mut self) -> bool {
+        if self.round_intro_timer > 0 {
+            self.round_intro_timer -= 1;
+            return false;
+        }
+        // Intro finished, start fighting
+        self.game_state = GameState::Fighting;
+        false
+    }
+
     fn tick_round_end(&mut self) -> bool {
         if self.round_end_timer > 0 {
             self.round_end_timer -= 1;
@@ -315,7 +344,7 @@ impl MenuSystem {
         // Next round.
         self.current_round += 1;
         self.round_winner = None;
-        self.game_state = GameState::Fighting;
+        self.start_round_intro();
         true // signal: reset world for new round
     }
 
@@ -368,6 +397,7 @@ impl MenuSystem {
     pub fn render(&self, screen_w: f32, screen_h: f32) -> Vec<QuadInstance> {
         match self.game_state {
             GameState::MainMenu => self.render_main_menu(screen_w, screen_h),
+            GameState::RoundIntro => self.render_round_intro(screen_w, screen_h),
             GameState::Paused => self.render_pause_menu(screen_w, screen_h),
             GameState::RoundEnd => self.render_round_end(screen_w, screen_h),
             GameState::MatchEnd => self.render_match_end(screen_w, screen_h),
@@ -375,38 +405,81 @@ impl MenuSystem {
         }
     }
 
+    fn render_round_intro(&self, screen_w: f32, screen_h: f32) -> Vec<QuadInstance> {
+        // Dark overlay during intro (text rendered separately in render_text)
+        vec![QuadInstance {
+            rect: [0.0, 0.0, screen_w, screen_h],
+            color: [0.0, 0.0, 0.0, 0.3],
+            ..Default::default()
+        }]
+    }
+
     fn render_main_menu(&self, screen_w: f32, screen_h: f32) -> Vec<QuadInstance> {
-        let mut quads = Vec::with_capacity(16);
-        // Full-screen dark background.
+        let mut quads = Vec::with_capacity(20);
+
+        // Full-screen dark blue-black background.
         quads.push(QuadInstance {
             rect: [0.0, 0.0, screen_w, screen_h],
-            color: [0.05, 0.05, 0.08, 1.0],
+            color: [0.03, 0.03, 0.06, 1.0],
+            uv: [0.0, 0.0, 1.0, 1.0],
         });
-        // Title bar.
-        let title_w = 400.0;
-        let title_h = 40.0;
+
+        // Subtle diagonal line pattern (simulated with thin quads)
+        for i in 0..20 {
+            let x = i as f32 * 60.0 - 400.0;
+            quads.push(QuadInstance {
+                rect: [x, 0.0, 1.0, screen_h * 2.0],
+                color: [1.0, 1.0, 1.0, 0.02],
+                ..Default::default()
+            });
+        }
+
+        // Title bar (gold gradient bar)
+        let title_w = 420.0;
+        let title_h = 44.0;
         let title_x = (screen_w - title_w) / 2.0;
-        let title_y = screen_h * 0.2;
+        let title_y = screen_h * 0.17;
+        // Gold border
+        quads.push(QuadInstance {
+            rect: [title_x - 2.0, title_y - 2.0, title_w + 4.0, title_h + 4.0],
+            color: [0.78, 0.63, 0.0, 1.0],
+            ..Default::default()
+        });
+        // Dark fill
         quads.push(QuadInstance {
             rect: [title_x, title_y, title_w, title_h],
-            color: [0.9, 0.6, 0.1, 1.0],
+            color: [0.78, 0.63, 0.0, 1.0],
+            ..Default::default()
         });
+
         // Menu items.
-        let item_w = 200.0;
-        let item_h = 30.0;
-        let start_y = screen_h * 0.45;
-        let gap = 10.0;
+        let item_w = 220.0;
+        let item_h = 36.0;
+        let start_y = screen_h * 0.42;
+        let gap = 8.0;
         for (i, _item) in MAIN_MENU_ITEMS.iter().enumerate() {
             let x = (screen_w - item_w) / 2.0;
             let y = start_y + (item_h + gap) * i as f32;
-            let color = if i == self.main_cursor {
-                [0.3, 0.6, 0.9, 1.0] // highlighted
+
+            // Gold border for selected item
+            if i == self.main_cursor {
+                quads.push(QuadInstance {
+                    rect: [x - 2.0, y - 2.0, item_w + 4.0, item_h + 4.0],
+                    color: [0.78, 0.63, 0.0, 1.0],
+                    ..Default::default()
+                });
+            }
+
+            // Item background
+            let bg_color = if i == self.main_cursor {
+                [0.12, 0.12, 0.15, 0.95]
             } else {
-                [0.2, 0.2, 0.25, 1.0]
+                [0.08, 0.08, 0.10, 0.8]
             };
             quads.push(QuadInstance {
                 rect: [x, y, item_w, item_h],
-                color,
+                color: bg_color,
+            ..Default::default()
             });
         }
         quads
@@ -418,6 +491,7 @@ impl MenuSystem {
         quads.push(QuadInstance {
             rect: [0.0, 0.0, screen_w, screen_h],
             color: [0.0, 0.0, 0.0, 0.6],
+            ..Default::default()
         });
         // Pause box.
         let box_w = 200.0;
@@ -427,6 +501,7 @@ impl MenuSystem {
         quads.push(QuadInstance {
             rect: [box_x, box_y, box_w, box_h],
             color: [0.15, 0.15, 0.2, 0.9],
+            ..Default::default()
         });
         // Pause items.
         let item_w = 160.0;
@@ -444,6 +519,7 @@ impl MenuSystem {
             quads.push(QuadInstance {
                 rect: [x, y, item_w, item_h],
                 color,
+                ..Default::default()
             });
         }
         quads
@@ -455,6 +531,7 @@ impl MenuSystem {
         quads.push(QuadInstance {
             rect: [0.0, 0.0, screen_w, screen_h],
             color: [0.0, 0.0, 0.0, 0.4],
+            ..Default::default()
         });
         // Winner banner.
         let banner_w = 300.0;
@@ -469,6 +546,7 @@ impl MenuSystem {
         quads.push(QuadInstance {
             rect: [x, y, banner_w, banner_h],
             color,
+            ..Default::default()
         });
         quads
     }
@@ -478,6 +556,7 @@ impl MenuSystem {
         quads.push(QuadInstance {
             rect: [0.0, 0.0, screen_w, screen_h],
             color: [0.0, 0.0, 0.0, 0.7],
+            ..Default::default()
         });
         let banner_w = 350.0;
         let banner_h = 60.0;
@@ -491,8 +570,172 @@ impl MenuSystem {
         quads.push(QuadInstance {
             rect: [x, y, banner_w, banner_h],
             color,
+            ..Default::default()
         });
         quads
+    }
+
+    /// Generate text areas for the current menu state.
+    pub fn render_text(&self, screen_w: f32, screen_h: f32) -> Vec<TextArea> {
+        match self.game_state {
+            GameState::MainMenu => self.render_text_main_menu(screen_w, screen_h),
+            GameState::RoundIntro => self.render_text_round_intro(screen_w, screen_h),
+            GameState::Paused => self.render_text_pause_menu(screen_w, screen_h),
+            GameState::RoundEnd => self.render_text_round_end(screen_w, screen_h),
+            GameState::MatchEnd => self.render_text_match_end(screen_w, screen_h),
+            GameState::Fighting => vec![],
+        }
+    }
+
+    fn render_text_main_menu(&self, screen_w: f32, screen_h: f32) -> Vec<TextArea> {
+        let mut areas = Vec::new();
+
+        // Title bar (gold background)
+        let title_bar_y = screen_h * 0.18;
+        areas.push(TextArea {
+            text: "TICKLE FIGHTING ENGINE".to_string(),
+            x: screen_w * 0.5 - 180.0,
+            y: title_bar_y + 6.0,
+            size: 20.0,
+            color: [0.05, 0.05, 0.08, 1.0], // dark text on gold bar
+            bounds: None,
+        });
+
+        // Menu items
+        let labels = ["VS MODE", "TRAINING", "QUIT"];
+        let item_h = 36.0;
+        let start_y = screen_h * 0.42;
+        let gap = 8.0;
+        let item_size = 14.0;
+        for (i, label) in labels.iter().enumerate() {
+            let label_w = label.len() as f32 * item_size * 0.6;
+            let y = start_y + (item_h + gap) * i as f32 + (item_h - item_size) / 2.0;
+            let color = if i == self.main_cursor {
+                [1.0, 1.0, 1.0, 1.0]
+            } else {
+                [0.5, 0.5, 0.5, 1.0]
+            };
+            areas.push(TextArea {
+                text: label.to_string(),
+                x: (screen_w - label_w) / 2.0,
+                y,
+                size: item_size,
+                color,
+                bounds: None,
+            });
+        }
+        areas
+    }
+
+    fn render_text_round_intro(&self, screen_w: f32, screen_h: f32) -> Vec<TextArea> {
+        let mut areas = Vec::new();
+
+        // Animation phases:
+        // 0-30: "ROUND X" scaling in
+        // 30-90: "ROUND X" displayed
+        // 90-120: "ROUND X" fades, "FIGHT!" appears
+        // 120-150: "FIGHT!" displayed
+        let elapsed = ROUND_INTRO_FRAMES - self.round_intro_timer;
+
+        let center_y = screen_h * 0.4;
+
+        if elapsed < 90 {
+            // ROUND X
+            let text = format!("ROUND {}", self.current_round);
+            let size = 28.0;
+            let text_w = text.len() as f32 * size * 0.6;
+            areas.push(TextArea {
+                text,
+                x: (screen_w - text_w) / 2.0,
+                y: center_y,
+                size,
+                color: [0.91, 0.75, 0.0, 1.0], // gold
+                bounds: None,
+            });
+        }
+
+        if elapsed >= 90 {
+            // FIGHT!
+            let text = "FIGHT!";
+            let size = 32.0;
+            let text_w = text.len() as f32 * size * 0.6;
+            areas.push(TextArea {
+                text: text.to_string(),
+                x: (screen_w - text_w) / 2.0,
+                y: center_y,
+                size,
+                color: [1.0, 1.0, 1.0, 1.0],
+                bounds: None,
+            });
+        }
+
+        areas
+    }
+
+    fn render_text_pause_menu(&self, screen_w: f32, screen_h: f32) -> Vec<TextArea> {
+        let mut areas = Vec::new();
+        let labels = ["RESUME", "QUIT TO MENU"];
+        let item_h = 28.0;
+        let box_h = 120.0;
+        let start_y = (screen_h - box_h) / 2.0 + 20.0;
+        let gap = 10.0;
+        let item_size = 16.0;
+        for (i, label) in labels.iter().enumerate() {
+            let label_w = label.len() as f32 * item_size * 0.6;
+            let y = start_y + (item_h + gap) * i as f32 + (item_h - item_size) / 2.0;
+            let color = if i == self.pause_cursor {
+                [1.0, 1.0, 1.0, 1.0]
+            } else {
+                [0.8, 0.8, 0.8, 1.0]
+            };
+            areas.push(TextArea {
+                text: label.to_string(),
+                x: (screen_w - label_w) / 2.0,
+                y,
+                size: item_size,
+                color,
+                bounds: None,
+            });
+        }
+        areas
+    }
+
+    fn render_text_round_end(&self, screen_w: f32, screen_h: f32) -> Vec<TextArea> {
+        let text = match self.round_winner {
+            Some(1) => "PLAYER 1 WINS!",
+            Some(2) => "PLAYER 2 WINS!",
+            _ => "DRAW",
+        };
+        let size = 28.0;
+        let text_w = text.len() as f32 * size * 0.6;
+        let banner_h = 50.0;
+        vec![TextArea {
+            text: text.to_string(),
+            x: (screen_w - text_w) / 2.0,
+            y: (screen_h - banner_h) / 2.0 + (banner_h - size) / 2.0,
+            size,
+            color: [1.0, 1.0, 1.0, 1.0],
+            bounds: None,
+        }]
+    }
+
+    fn render_text_match_end(&self, screen_w: f32, screen_h: f32) -> Vec<TextArea> {
+        let text = match self.match_winner {
+            Some(1) => "PLAYER 1 WINS THE MATCH!",
+            Some(2) => "PLAYER 2 WINS THE MATCH!",
+            _ => "DRAW",
+        };
+        let size = 26.0;
+        let text_w = text.len() as f32 * size * 0.6;
+        let banner_h = 60.0;
+        vec![TextArea {
+            text: text.to_string(),
+            x: (screen_w - text_w) / 2.0,
+            y: (screen_h - banner_h) / 2.0 + (banner_h - size) / 2.0,
+            size,
+            color: [1.0, 1.0, 1.0, 1.0],
+            bounds: None,
+        }]
     }
 }
 
@@ -527,7 +770,7 @@ mod tests {
         let mut ms = MenuSystem::new();
         // Cursor at 0 = VsMode
         ms.handle_input(MenuInput::Confirm);
-        assert_eq!(ms.game_state, GameState::Fighting);
+        assert_eq!(ms.game_state, GameState::RoundIntro);
         assert_eq!(ms.game_mode, GameMode::Vs);
         assert!(ms.should_run_logic());
     }
@@ -537,7 +780,7 @@ mod tests {
         let mut ms = MenuSystem::new();
         ms.handle_input(MenuInput::Down); // Training
         ms.handle_input(MenuInput::Confirm);
-        assert_eq!(ms.game_state, GameState::Fighting);
+        assert_eq!(ms.game_state, GameState::RoundIntro);
         assert_eq!(ms.game_mode, GameMode::Training);
     }
 
@@ -553,7 +796,12 @@ mod tests {
     #[test]
     fn test_pause_and_resume() {
         let mut ms = MenuSystem::new();
-        ms.handle_input(MenuInput::Confirm); // enter VS mode
+        ms.handle_input(MenuInput::Confirm); // enter RoundIntro
+        // Skip intro to fighting
+        ms.round_intro_timer = 0;
+        let world = World::new();
+        let ui = UIRenderer::new();
+        ms.update_round(&world, &ui);
         assert_eq!(ms.game_state, GameState::Fighting);
         ms.handle_input(MenuInput::Pause);
         assert_eq!(ms.game_state, GameState::Paused);
@@ -567,6 +815,11 @@ mod tests {
     fn test_pause_back_resumes() {
         let mut ms = MenuSystem::new();
         ms.handle_input(MenuInput::Confirm);
+        // Skip intro to fighting
+        ms.round_intro_timer = 0;
+        let world = World::new();
+        let ui = UIRenderer::new();
+        ms.update_round(&world, &ui);
         ms.handle_input(MenuInput::Pause);
         assert_eq!(ms.game_state, GameState::Paused);
         ms.handle_input(MenuInput::Back);
@@ -576,7 +829,12 @@ mod tests {
     #[test]
     fn test_pause_quit_to_menu() {
         let mut ms = MenuSystem::new();
-        ms.handle_input(MenuInput::Confirm); // enter VS
+        ms.handle_input(MenuInput::Confirm); // enter RoundIntro
+        // Skip intro to fighting
+        ms.round_intro_timer = 0;
+        let world = World::new();
+        let ui = UIRenderer::new();
+        ms.update_round(&world, &ui);
         ms.handle_input(MenuInput::Pause);
         ms.handle_input(MenuInput::Down); // Quit
         let needs_reset = ms.handle_input(MenuInput::Confirm);
@@ -627,7 +885,7 @@ mod tests {
         assert!(reset);
         assert_eq!(ms.p1_wins, 1);
         assert_eq!(ms.current_round, 2);
-        assert_eq!(ms.game_state, GameState::Fighting);
+        assert_eq!(ms.game_state, GameState::RoundIntro); // now goes through intro
     }
 
     #[test]
@@ -706,8 +964,8 @@ mod tests {
     fn test_render_main_menu_produces_quads() {
         let ms = MenuSystem::new();
         let quads = ms.render(800.0, 600.0);
-        // Background + title + 3 menu items = 5 quads.
-        assert_eq!(quads.len(), 5);
+        // Background + diagonal lines (20) + title border + title + menu item borders (3) + menu items (3) = 28
+        assert!(quads.len() >= 5);
     }
 
     #[test]

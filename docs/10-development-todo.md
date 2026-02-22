@@ -2,7 +2,7 @@
 
 **版本：** v0.1.0-alpha
 **更新日期：** 2026-02-22
-**状态：** All phases complete (v0.1.0-alpha feature-complete)
+**状态：** v0.1.0-alpha 核心功能完成；v0.2.0 装修阶段进行中（见 `docs/13-polish-todo.md`）
 
 ---
 
@@ -180,17 +180,17 @@
 ### 3.1 状态机系统
 **文件：** `crates/tickle_core/src/state_machine.rs`
 
-- [ ] 定义 `StateType` 枚举（Idle / Walk / Jump / Attack 等）
-- [ ] 实现 `StateMachine` 结构体
-  - [ ] `update()` 状态转换逻辑
-  - [ ] `enter_state()` 进入状态回调
-  - [ ] `exit_state()` 退出状态回调
-- [ ] 实现状态转换表
-  - [ ] Idle → Walk / Jump / Crouch / Attack
-  - [ ] Attack → Idle（动作结束）
-  - [ ] Attack → Attack（取消链）
-  - [ ] Hitstun → Idle（硬直结束）
-- [ ] 单元测试（模拟输入，验证状态转换）
+- [x] 定义 `StateType` 枚举（Idle / Walk / Jump / Attack 等）
+- [x] 实现 `StateMachine` 结构体
+  - [x] `update()` 状态转换逻辑
+  - [x] `enter_state()` 进入状态回调
+  - [x] `exit_state()` 退出状态回调
+- [x] 实现状态转换表
+  - [x] Idle → Walk / Jump / Crouch / Attack
+  - [x] Attack → Idle（动作结束）
+  - [x] Attack → Attack（取消链）
+  - [x] Hitstun → Idle（硬直结束）
+- [x] 单元测试（模拟输入，验证状态转换）
 
 ### 3.2 碰撞检测系统
 **文件：** `crates/tickle_core/src/systems/collision.rs`
@@ -255,22 +255,22 @@
 ### 4.1 音频管理器
 **文件：** `crates/tickle_audio/src/lib.rs`
 
-- [ ] 初始化 kira `AudioManager`
-- [ ] 实现 `SoundEffectPlayer`
-  - [ ] `play_sound(id)` 播放音效
-  - [ ] 音效缓存（预加载常用音效）
-- [ ] 实现 `MusicPlayer`
-  - [ ] `play_music(id)` 播放 BGM
-  - [ ] `stop_music()` 停止 BGM
-  - [ ] 循环播放
-- [ ] 音量控制（主音量 / 音效 / 音乐分离）
+- [x] 初始化 kira `AudioManager`
+- [x] 实现 `SoundEffectPlayer`
+  - [x] `play_sound(id)` 播放音效
+  - [x] 音效缓存（预加载常用音效）
+- [x] 实现 `MusicPlayer`
+  - [x] `play_music(id)` 播放 BGM
+  - [x] `stop_music()` 停止 BGM
+  - [x] 循环播放
+- [x] 音量控制（主音量 / 音效 / 音乐分离）
 
 ### 4.2 音频事件系统
 **文件：** `crates/tickle_core/src/systems/audio_events.rs`
 
-- [ ] 监听 `HitEvent`，播放命中音效
-- [ ] 监听 `StateChange`，播放动作音效
-- [ ] 监听 `RoundStart`，播放 BGM
+- [x] 监听 `HitEvent`，播放命中音效
+- [x] 监听 `StateChange`，播放动作音效
+- [x] 监听 `RoundStart`，播放 BGM
 
 ---
 
@@ -279,27 +279,27 @@
 ### 5.1 游戏状态快照
 **文件：** `crates/tickle_network/src/snapshot.rs`
 
-- [ ] 定义 `GameSnapshot` 结构体
-  - [ ] 包含所有 ECS 组件数据
-  - [ ] 实现 `Clone` trait
-- [ ] 实现 `save_state(world) -> GameSnapshot`
-  - [ ] 遍历所有实体，克隆组件
-- [ ] 实现 `load_state(world, snapshot)`
-  - [ ] 清空当前世界
-  - [ ] 从快照恢复所有实体和组件
+- [x] 定义 `GameSnapshot` 结构体
+  - [x] 包含所有 ECS 组件数据
+  - [x] 实现 `Clone` trait
+- [x] 实现 `save_state(world) -> GameSnapshot`
+  - [x] 遍历所有实体，克隆组件
+- [x] 实现 `load_state(world, snapshot)`
+  - [x] 清空当前世界
+  - [x] 从快照恢复所有实体和组件
 
 ### 5.2 GGRS 集成
 **文件：** `crates/tickle_network/src/lib.rs`
 
-- [ ] 实现 `GGRSConfig` trait
-  - [ ] 定义 `State = GameSnapshot`
-  - [ ] 定义 `Input = InputState`
-- [ ] 实现 `advance_frame()`（确定性逻辑更新）
-  - [ ] 应用输入
-  - [ ] 执行所有游戏系统
-  - [ ] 禁止浮点运算（编译时检查）
-- [ ] 实现 `save_game_state()` / `load_game_state()`
-- [ ] 实现 `on_event()`（处理 GGRS 事件）
+- [x] 实现 `GGRSConfig` trait
+  - [x] 定义 `State = GameSnapshot`
+  - [x] 定义 `Input = InputState`
+- [x] 实现 `advance_frame()`（确定性逻辑更新）
+  - [x] 应用输入
+  - [x] 执行所有游戏系统
+  - [x] 禁止浮点运算（编译时检查）
+- [x] 实现 `save_game_state()` / `load_game_state()`
+- [x] 实现 `on_event()`（处理 GGRS 事件）
 
 ### 5.3 确定性验证
 **文件：** `crates/tickle_network/tests/determinism_test.rs`
@@ -315,7 +315,7 @@
   }
   ```
 - [ ] 测试 1000 帧模拟，验证状态一致性
-- [ ] 测试随机数生成器（固定种子）
+- [x] 测试随机数生成器（固定种子）
 
 ### 5.4 网络传输层
 **文件：** `crates/tickle_network/src/transport.rs`
@@ -324,6 +324,8 @@
 - [ ] 实现 P2P 连接（使用 `matchbox` 或自建）
 - [ ] 实现房间匹配逻辑（简单版：房间码）
 - [ ] 延迟测试工具（模拟 50ms / 100ms / 200ms 延迟）
+
+> ⚠️ **5.4 是唯一真正未完成的网络功能**，其余网络基础设施（快照、GGRS集成）均已完成。
 
 ---
 
@@ -337,40 +339,41 @@
   - [ ] 3 个普通攻击（轻拳 / 中拳 / 重拳）
   - [ ] 1 个特殊技（波动拳，QCF+A）
   - [ ] 1 个超必杀（真空波动拳，QCF×2+A）
-- [ ] 绘制精灵动画（或使用占位符）
-- [ ] 编写 RON 配置文件
+- [ ] 绘制精灵动画（**→ 见 docs/13-polish-todo.md Phase 0-1**）
+- [x] 编写 RON 配置文件
 - [ ] 测试所有招式的碰撞盒和帧数据
 
 ### 6.2 第一个舞台
 **文件：** `assets/stages/dojo/`
 
-- [ ] 设计舞台背景（视差 3 层）
-- [ ] 设置舞台边界（宽度约 1200 像素）
-- [ ] 添加 BGM
-- [ ] 编写舞台配置文件
+- [ ] 设计舞台背景（视差 3 层）（**→ 见 docs/13-polish-todo.md Phase 0.2 & 3**）
+- [x] 设置舞台边界（宽度约 1200 像素）
+- [x] 添加 BGM（占位符，待替换）
+- [x] 编写舞台配置文件
 
 ### 6.3 UI 系统
 **文件：** `game/src/ui/`
 
-- [ ] 实现血条 HUD
-  - [ ] 平滑动画（受击时延迟减少）
-- [ ] 实现气槽 HUD
-  - [ ] 3 股显示，充能动画
-- [ ] 实现回合计时器
-- [ ] 实现连击数显示（Combo Counter）
-- [ ] 实现胜负判定界面
+- [x] 实现血条 HUD
+  - [x] 平滑动画（受击时延迟减少）
+- [x] 实现气槽 HUD
+  - [x] 3 股显示，充能动画
+- [x] 实现回合计时器
+- [x] 实现连击数显示（Combo Counter）
+- [x] 实现胜负判定界面
+- [ ] UI 视觉升级（KOF2000 风格）（**→ 见 docs/13-polish-todo.md Phase 2**）
 
 ### 6.4 游戏模式
 **文件：** `game/src/modes/`
 
-- [ ] 实现本地对战模式（2P）
-  - [ ] 角色选择界面
-  - [ ] 3 局 2 胜制
-  - [ ] 回合结算
-- [ ] 实现训练模式
-  - [ ] 无限血量
+- [x] 实现本地对战模式（2P）
+  - [x] 角色选择界面
+  - [x] 3 局 2 胜制
+  - [x] 回合结算
+- [x] 实现训练模式
+  - [x] 无限血量
   - [ ] 显示帧数据
-  - [ ] 碰撞盒可视化
+  - [x] 碰撞盒可视化
   - [ ] 输入历史显示
 
 ---

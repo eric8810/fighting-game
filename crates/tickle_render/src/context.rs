@@ -22,7 +22,7 @@ impl RenderContext {
     pub async fn new(window: Arc<Window>) -> Result<Self> {
         let size = window.inner_size();
 
-        let instance = Instance::new(InstanceDescriptor {
+        let instance = Instance::new(&InstanceDescriptor {
             backends: wgpu::Backends::all(),
             ..Default::default()
         });
@@ -36,7 +36,7 @@ impl RenderContext {
                 force_fallback_adapter: false,
             })
             .await
-            .ok_or_else(|| anyhow::anyhow!("Failed to find a suitable GPU adapter"))?;
+            .map_err(|e| anyhow::anyhow!("Failed to find a suitable GPU adapter: {}", e))?;
 
         log::info!("Using adapter: {:?}", adapter.get_info().name);
 
@@ -46,7 +46,6 @@ impl RenderContext {
                     label: Some("tickle_render_device"),
                     ..Default::default()
                 },
-                None,
             )
             .await?;
 
@@ -119,6 +118,7 @@ impl RenderContext {
                 label: Some("clear_pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
+                    depth_slice: None,
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(color),
@@ -128,6 +128,7 @@ impl RenderContext {
                 depth_stencil_attachment: None,
                 timestamp_writes: None,
                 occlusion_query_set: None,
+                multiview_mask: None,
             });
         }
 
