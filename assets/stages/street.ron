@@ -1,0 +1,45 @@
+// Street - Urban Stage
+// Tickle Fighting Engine
+(
+    name: "Street",
+    width: 160000,
+    bgm_path: "audio/bgm/street.ogg",
+    layers: [
+        (
+            texture: "street_sky",
+            scroll_speed: 0.0,
+            depth: 0,
+            color: (0.02, 0.02, 0.08, 1.0),
+            y_offset: 0.0,
+            height: 600.0,
+        ),
+        (
+            texture: "street_buildings_far",
+            scroll_speed: 0.15,
+            depth: 1,
+            color: (0.08, 0.08, 0.12, 1.0),
+            y_offset: 100.0,
+            height: 350.0,
+        ),
+        (
+            texture: "street_buildings_near",
+            scroll_speed: 0.4,
+            depth: 2,
+            color: (0.12, 0.1, 0.15, 1.0),
+            y_offset: 250.0,
+            height: 250.0,
+        ),
+        (
+            texture: "street_ground",
+            scroll_speed: 1.0,
+            depth: 3,
+            color: (0.15, 0.15, 0.12, 1.0),
+            y_offset: 500.0,
+            height: 100.0,
+        ),
+    ],
+    boundaries: (
+        left: 0,
+        right: 160000,
+    ),
+)

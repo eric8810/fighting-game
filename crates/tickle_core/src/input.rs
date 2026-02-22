@@ -81,7 +81,7 @@ impl InputState {
 }
 
 /// Input buffer (16 frames history)
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct InputBuffer {
     history: [InputState; 16],
     head: usize,

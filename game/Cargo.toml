@@ -8,12 +8,16 @@ license.workspace = true
 [dependencies]
 tickle_core = { path = "../crates/tickle_core" }
 tickle_render = { path = "../crates/tickle_render" }
+tickle_audio = { path = "../crates/tickle_audio" }
+tickle_network = { path = "../crates/tickle_network" }
 hecs = { workspace = true }
 winit = { workspace = true }
 wgpu = { workspace = true }
 bytemuck = { workspace = true }
 glam = { workspace = true }
 pollster = "0.4"
+serde = { workspace = true }
+ron = { workspace = true }
 log = { workspace = true }
 env_logger = { workspace = true }
 anyhow = { workspace = true }

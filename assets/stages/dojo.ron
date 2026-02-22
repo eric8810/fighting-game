@@ -1,0 +1,45 @@
+// Dojo - Training Stage
+// Tickle Fighting Engine
+(
+    name: "Dojo",
+    width: 120000,
+    bgm_path: "audio/bgm/dojo.ogg",
+    layers: [
+        (
+            texture: "dojo_sky",
+            scroll_speed: 0.0,
+            depth: 0,
+            color: (0.05, 0.05, 0.15, 1.0),
+            y_offset: 0.0,
+            height: 600.0,
+        ),
+        (
+            texture: "dojo_mountains",
+            scroll_speed: 0.2,
+            depth: 1,
+            color: (0.1, 0.1, 0.2, 1.0),
+            y_offset: 200.0,
+            height: 250.0,
+        ),
+        (
+            texture: "dojo_walls",
+            scroll_speed: 0.5,
+            depth: 2,
+            color: (0.3, 0.2, 0.15, 1.0),
+            y_offset: 350.0,
+            height: 150.0,
+        ),
+        (
+            texture: "dojo_floor",
+            scroll_speed: 1.0,
+            depth: 3,
+            color: (0.25, 0.15, 0.1, 1.0),
+            y_offset: 500.0,
+            height: 100.0,
+        ),
+    ],
+    boundaries: (
+        left: 0,
+        right: 120000,
+    ),
+)

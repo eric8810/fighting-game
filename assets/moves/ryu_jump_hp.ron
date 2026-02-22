@@ -1,0 +1,60 @@
+// Jumping heavy punch - jump-in combo starter
+// Startup 7 / Active 4 / Recovery 7 = 18 total frames
+(
+    id: "ryu_jump_hp",
+    name: "Jumping Heavy Punch",
+    startup: 7,
+    active: 4,
+    recovery: 7,
+    total_frames: 18,
+    damage: 900,
+    stun_damage: 60,
+    gauge_gain_on_hit: 15,
+    gauge_gain_on_block: 8,
+    on_hit_advantage: 999,
+    on_block_advantage: 999,
+    cancel_windows: [],
+    frames: [
+        // Startup (1-7)
+        (
+            frame_range: (start: 1, end: 7),
+            hitboxes: [],
+            hurtboxes: [
+                (rect: (x: -1500, y: -1000, w: 3000, h: 6000)),
+            ],
+            pushbox: (rect: (x: -1500, y: -1000, w: 3000, h: 6000)),
+        ),
+        // Active (8-11)
+        (
+            frame_range: (start: 8, end: 11),
+            hitboxes: [
+                (
+                    rect: (x: 1000, y: -5000, w: 5000, h: 4000),
+                    damage: 900,
+                    hitstun: 18,
+                    blockstun: 14,
+                    knockback: (x: 8000, y: -5000),
+                    hit_type: "high",
+                ),
+            ],
+            hurtboxes: [
+                (rect: (x: -1500, y: -1000, w: 3000, h: 6000)),
+                (rect: (x: 1000, y: -5000, w: 5500, h: 4000)),
+            ],
+            pushbox: (rect: (x: -1500, y: -1000, w: 3000, h: 6000)),
+        ),
+        // Recovery (12-18)
+        (
+            frame_range: (start: 12, end: 18),
+            hitboxes: [],
+            hurtboxes: [
+                (rect: (x: -1500, y: -1000, w: 3000, h: 6000)),
+            ],
+            pushbox: (rect: (x: -1500, y: -1000, w: 3000, h: 6000)),
+        ),
+    ],
+    animation: "ryu_jump_hp_anim",
+    hit_effect: "spark_heavy",
+    hit_sound: "hit_heavy_01",
+    block_sound: "block_02",
+)

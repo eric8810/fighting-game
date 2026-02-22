@@ -1,0 +1,63 @@
+// Standing medium punch - solid mid-range poke
+// Startup 5 / Active 4 / Recovery 10 = 19 total frames
+(
+    id: "ryu_stand_mp",
+    name: "Standing Medium Punch",
+    startup: 5,
+    active: 4,
+    recovery: 10,
+    total_frames: 19,
+    damage: 700,
+    stun_damage: 50,
+    gauge_gain_on_hit: 10,
+    gauge_gain_on_block: 5,
+    on_hit_advantage: 4,
+    on_block_advantage: 0,
+    cancel_windows: [
+        (start: 6, end: 9, into: ["special", "super"]),
+    ],
+    frames: [
+        // Startup (1-5)
+        (
+            frame_range: (start: 1, end: 5),
+            hitboxes: [],
+            hurtboxes: [
+                (rect: (x: -2000, y: 0, w: 4000, h: 8000)),
+                (rect: (x: 1000, y: -5000, w: 3000, h: 2500)),
+            ],
+            pushbox: (rect: (x: -1500, y: 0, w: 3000, h: 8000)),
+        ),
+        // Active (6-9)
+        (
+            frame_range: (start: 6, end: 9),
+            hitboxes: [
+                (
+                    rect: (x: 1500, y: -5500, w: 5000, h: 2500),
+                    damage: 700,
+                    hitstun: 14,
+                    blockstun: 10,
+                    knockback: (x: 8000, y: 0),
+                    hit_type: "mid",
+                ),
+            ],
+            hurtboxes: [
+                (rect: (x: -2000, y: 0, w: 4000, h: 8000)),
+                (rect: (x: 1000, y: -5500, w: 5500, h: 2500)),
+            ],
+            pushbox: (rect: (x: -1500, y: 0, w: 3000, h: 8000)),
+        ),
+        // Recovery (10-19)
+        (
+            frame_range: (start: 10, end: 19),
+            hitboxes: [],
+            hurtboxes: [
+                (rect: (x: -2000, y: 0, w: 4000, h: 8000)),
+            ],
+            pushbox: (rect: (x: -1500, y: 0, w: 3000, h: 8000)),
+        ),
+    ],
+    animation: "ryu_stand_mp_anim",
+    hit_effect: "spark_medium",
+    hit_sound: "hit_medium_01",
+    block_sound: "block_01",
+)

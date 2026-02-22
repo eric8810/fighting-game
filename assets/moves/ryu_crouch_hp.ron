@@ -1,0 +1,62 @@
+// Crouching heavy punch - sweep, hits low
+// Startup 7 / Active 4 / Recovery 18 = 29 total frames
+(
+    id: "ryu_crouch_hp",
+    name: "Crouching Heavy Punch",
+    startup: 7,
+    active: 4,
+    recovery: 18,
+    total_frames: 29,
+    damage: 900,
+    stun_damage: 70,
+    gauge_gain_on_hit: 15,
+    gauge_gain_on_block: 8,
+    on_hit_advantage: -999,
+    on_block_advantage: -8,
+    cancel_windows: [
+        (start: 8, end: 11, into: ["super"]),
+    ],
+    frames: [
+        // Startup (1-7)
+        (
+            frame_range: (start: 1, end: 7),
+            hitboxes: [],
+            hurtboxes: [
+                (rect: (x: -2000, y: 0, w: 4500, h: 5000)),
+            ],
+            pushbox: (rect: (x: -1500, y: 0, w: 3000, h: 5000)),
+        ),
+        // Active (8-11): low sweep
+        (
+            frame_range: (start: 8, end: 11),
+            hitboxes: [
+                (
+                    rect: (x: 1000, y: -1500, w: 6000, h: 2000),
+                    damage: 900,
+                    hitstun: 0,
+                    blockstun: 14,
+                    knockback: (x: 5000, y: 0),
+                    hit_type: "low",
+                ),
+            ],
+            hurtboxes: [
+                (rect: (x: -2000, y: 0, w: 4500, h: 5000)),
+                (rect: (x: 1000, y: -1500, w: 6500, h: 2000)),
+            ],
+            pushbox: (rect: (x: -1500, y: 0, w: 3000, h: 5000)),
+        ),
+        // Recovery (12-29)
+        (
+            frame_range: (start: 12, end: 29),
+            hitboxes: [],
+            hurtboxes: [
+                (rect: (x: -2000, y: 0, w: 4500, h: 5000)),
+            ],
+            pushbox: (rect: (x: -1500, y: 0, w: 3000, h: 5000)),
+        ),
+    ],
+    animation: "ryu_crouch_hp_anim",
+    hit_effect: "spark_heavy",
+    hit_sound: "hit_heavy_01",
+    block_sound: "block_02",
+)

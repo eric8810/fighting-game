@@ -86,13 +86,15 @@ impl Default for FrameCounter {
 }
 
 /// Result of a single [`GameLoop::tick`] call.
-pub struct TickResult {
+pub struct TickResult<T = ()> {
     /// Number of logic updates that were executed this tick.
     pub logic_updates: u32,
     /// Interpolation alpha in `[0.0, 1.0)` representing how far we are
     /// between the last logic frame and the next. Renderers should use
     /// this to interpolate visual positions for smooth display.
     pub alpha: f32,
+    /// Collected results from all logic updates this tick.
+    pub results: Vec<T>,
 }
 
 /// Fixed-timestep game loop with accumulator pattern.
@@ -130,7 +132,7 @@ impl GameLoop {
     /// call. Invokes `logic_update` zero or more times (at the fixed
     /// 60 FPS cadence) and returns a [`TickResult`] with the
     /// interpolation alpha for rendering.
-    pub fn tick(&mut self, mut logic_update: impl FnMut()) -> TickResult {
+    pub fn tick<T>(&mut self, mut logic_update: impl FnMut() -> T) -> TickResult<T> {
         let now = Instant::now();
         let frame_time = (now - self.previous_time).as_secs_f64();
         self.previous_time = now;
@@ -140,8 +142,9 @@ impl GameLoop {
         self.accumulator += frame_time;
 
         let mut logic_updates: u32 = 0;
+        let mut results = Vec::new();
         while self.accumulator >= LOGIC_DT {
-            logic_update();
+            results.push(logic_update());
             self.accumulator -= LOGIC_DT;
             logic_updates += 1;
         }
@@ -157,19 +160,21 @@ impl GameLoop {
         TickResult {
             logic_updates,
             alpha,
+            results,
         }
     }
 
     /// Variant of [`tick`](Self::tick) that accepts an explicit
     /// `frame_time` instead of measuring wall-clock time. Useful for
     /// deterministic testing and replay.
-    pub fn tick_with_dt(&mut self, frame_time: f64, mut logic_update: impl FnMut()) -> TickResult {
+    pub fn tick_with_dt<T>(&mut self, frame_time: f64, mut logic_update: impl FnMut() -> T) -> TickResult<T> {
         let frame_time = frame_time.min(MAX_FRAME_TIME);
         self.accumulator += frame_time;
 
         let mut logic_updates: u32 = 0;
+        let mut results = Vec::new();
         while self.accumulator >= LOGIC_DT {
-            logic_update();
+            results.push(logic_update());
             self.accumulator -= LOGIC_DT;
             logic_updates += 1;
         }
@@ -181,6 +186,7 @@ impl GameLoop {
         TickResult {
             logic_updates,
             alpha,
+            results,
         }
     }
 

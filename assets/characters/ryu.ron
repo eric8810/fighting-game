@@ -8,9 +8,12 @@
     back_walk_speed: 350,
     run_speed: 900,
     jump_velocity: 1800,
+    jump_forward_velocity: 600,
+    jump_backward_velocity: -500,
     gravity: -80,
     pushbox_width: 3000,
     pushbox_height: 8000,
+    power_gauge_max: 3000,
 
     // Standing hurtbox (default)
     standing_hurtbox: (x: -2000, y: 0, w: 4000, h: 8000),
@@ -19,11 +22,39 @@
     // Jumping hurtbox
     jumping_hurtbox: (x: -1500, y: -1000, w: 3000, h: 6000),
 
-    // Move list references
+    // Move list references - complete moveset
     moves: [
+        // Standing normals
         "ryu_stand_lp",
+        "ryu_stand_mp",
+        "ryu_stand_hp",
+        // Crouching normals
+        "ryu_crouch_lp",
+        "ryu_crouch_mp",
+        "ryu_crouch_hp",
+        // Jumping normals
+        "ryu_jump_lp",
+        "ryu_jump_mp",
+        "ryu_jump_hp",
+        // Specials
         "ryu_hadoken",
         "ryu_shoryuken",
+        "ryu_tatsumaki",
+        // Supers
+        "ryu_shinku_hadoken",
+    ],
+
+    // Cancel chains define the priority order for cancels:
+    // LP -> MP -> HP -> Special -> Super
+    cancel_chains: [
+        (from: "ryu_stand_lp",  into: ["ryu_stand_mp", "ryu_stand_hp", "ryu_hadoken", "ryu_shoryuken", "ryu_tatsumaki", "ryu_shinku_hadoken"]),
+        (from: "ryu_stand_mp",  into: ["ryu_stand_hp", "ryu_hadoken", "ryu_shoryuken", "ryu_tatsumaki", "ryu_shinku_hadoken"]),
+        (from: "ryu_stand_hp",  into: ["ryu_hadoken", "ryu_shoryuken", "ryu_tatsumaki", "ryu_shinku_hadoken"]),
+        (from: "ryu_crouch_lp", into: ["ryu_crouch_mp", "ryu_stand_mp", "ryu_hadoken", "ryu_shoryuken", "ryu_tatsumaki", "ryu_shinku_hadoken"]),
+        (from: "ryu_crouch_mp", into: ["ryu_crouch_hp", "ryu_stand_hp", "ryu_hadoken", "ryu_shoryuken", "ryu_tatsumaki", "ryu_shinku_hadoken"]),
+        (from: "ryu_crouch_hp", into: ["ryu_hadoken", "ryu_shoryuken", "ryu_tatsumaki", "ryu_shinku_hadoken"]),
+        (from: "ryu_hadoken",   into: ["ryu_shinku_hadoken"]),
+        (from: "ryu_tatsumaki", into: ["ryu_shinku_hadoken"]),
     ],
 
     // Animation references
@@ -39,6 +70,24 @@
             frames: [(atlas_index: 0, offset: (x: 0, y: 0))],
             frame_duration: 6,
             looping: true,
+        ),
+        "walk_backward": (
+            texture: "test_fighter",
+            frames: [(atlas_index: 0, offset: (x: 0, y: 0))],
+            frame_duration: 6,
+            looping: true,
+        ),
+        "crouch": (
+            texture: "test_fighter",
+            frames: [(atlas_index: 0, offset: (x: 0, y: 0))],
+            frame_duration: 4,
+            looping: false,
+        ),
+        "jump": (
+            texture: "test_fighter",
+            frames: [(atlas_index: 0, offset: (x: 0, y: 0))],
+            frame_duration: 4,
+            looping: false,
         ),
         "punch": (
             texture: "test_fighter",

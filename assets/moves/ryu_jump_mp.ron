@@ -1,0 +1,60 @@
+// Jumping medium punch - crossup tool
+// Startup 5 / Active 5 / Recovery 5 = 15 total frames
+(
+    id: "ryu_jump_mp",
+    name: "Jumping Medium Punch",
+    startup: 5,
+    active: 5,
+    recovery: 5,
+    total_frames: 15,
+    damage: 650,
+    stun_damage: 40,
+    gauge_gain_on_hit: 10,
+    gauge_gain_on_block: 5,
+    on_hit_advantage: 999,
+    on_block_advantage: 999,
+    cancel_windows: [],
+    frames: [
+        // Startup (1-5)
+        (
+            frame_range: (start: 1, end: 5),
+            hitboxes: [],
+            hurtboxes: [
+                (rect: (x: -1500, y: -1000, w: 3000, h: 6000)),
+            ],
+            pushbox: (rect: (x: -1500, y: -1000, w: 3000, h: 6000)),
+        ),
+        // Active (6-10)
+        (
+            frame_range: (start: 6, end: 10),
+            hitboxes: [
+                (
+                    rect: (x: 1000, y: -4500, w: 4500, h: 3000),
+                    damage: 650,
+                    hitstun: 14,
+                    blockstun: 10,
+                    knockback: (x: 5000, y: -3000),
+                    hit_type: "high",
+                ),
+            ],
+            hurtboxes: [
+                (rect: (x: -1500, y: -1000, w: 3000, h: 6000)),
+                (rect: (x: 1000, y: -4500, w: 5000, h: 3000)),
+            ],
+            pushbox: (rect: (x: -1500, y: -1000, w: 3000, h: 6000)),
+        ),
+        // Recovery (11-15)
+        (
+            frame_range: (start: 11, end: 15),
+            hitboxes: [],
+            hurtboxes: [
+                (rect: (x: -1500, y: -1000, w: 3000, h: 6000)),
+            ],
+            pushbox: (rect: (x: -1500, y: -1000, w: 3000, h: 6000)),
+        ),
+    ],
+    animation: "ryu_jump_mp_anim",
+    hit_effect: "spark_medium",
+    hit_sound: "hit_medium_01",
+    block_sound: "block_01",
+)

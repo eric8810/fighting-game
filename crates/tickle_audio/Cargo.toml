@@ -6,3 +6,9 @@ authors.workspace = true
 license.workspace = true
 
 [dependencies]
+kira = { workspace = true }
+anyhow = { workspace = true }
+log = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]

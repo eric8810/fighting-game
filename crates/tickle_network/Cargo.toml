@@ -6,3 +6,8 @@ authors.workspace = true
 license.workspace = true
 
 [dependencies]
+tickle_core = { path = "../tickle_core" }
+ggrs = { workspace = true }
+serde = { workspace = true }
+bytemuck = { workspace = true }
+log = { workspace = true }

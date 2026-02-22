@@ -1,0 +1,60 @@
+// Jumping light punch - air-to-air jab
+// Startup 3 / Active 6 / Recovery 3 = 12 total frames
+(
+    id: "ryu_jump_lp",
+    name: "Jumping Light Punch",
+    startup: 3,
+    active: 6,
+    recovery: 3,
+    total_frames: 12,
+    damage: 350,
+    stun_damage: 20,
+    gauge_gain_on_hit: 5,
+    gauge_gain_on_block: 3,
+    on_hit_advantage: 999,
+    on_block_advantage: 999,
+    cancel_windows: [],
+    frames: [
+        // Startup (1-3)
+        (
+            frame_range: (start: 1, end: 3),
+            hitboxes: [],
+            hurtboxes: [
+                (rect: (x: -1500, y: -1000, w: 3000, h: 6000)),
+            ],
+            pushbox: (rect: (x: -1500, y: -1000, w: 3000, h: 6000)),
+        ),
+        // Active (4-9)
+        (
+            frame_range: (start: 4, end: 9),
+            hitboxes: [
+                (
+                    rect: (x: 1500, y: -4000, w: 3500, h: 2000),
+                    damage: 350,
+                    hitstun: 10,
+                    blockstun: 8,
+                    knockback: (x: 3000, y: -2000),
+                    hit_type: "high",
+                ),
+            ],
+            hurtboxes: [
+                (rect: (x: -1500, y: -1000, w: 3000, h: 6000)),
+                (rect: (x: 1000, y: -4000, w: 4000, h: 2000)),
+            ],
+            pushbox: (rect: (x: -1500, y: -1000, w: 3000, h: 6000)),
+        ),
+        // Recovery (10-12)
+        (
+            frame_range: (start: 10, end: 12),
+            hitboxes: [],
+            hurtboxes: [
+                (rect: (x: -1500, y: -1000, w: 3000, h: 6000)),
+            ],
+            pushbox: (rect: (x: -1500, y: -1000, w: 3000, h: 6000)),
+        ),
+    ],
+    animation: "ryu_jump_lp_anim",
+    hit_effect: "spark_light",
+    hit_sound: "hit_light_01",
+    block_sound: "block_01",
+)

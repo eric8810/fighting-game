@@ -1,0 +1,78 @@
+// Shinku Hadoken - Super Art (requires 1 power stock = 1000 gauge)
+// Startup 4 / Active 8 / Recovery 24 = 36 total frames
+// Input: QCF + QCF + Punch (double quarter circle forward)
+(
+    id: "ryu_shinku_hadoken",
+    name: "Shinku Hadoken",
+    startup: 4,
+    active: 8,
+    recovery: 24,
+    total_frames: 36,
+    damage: 2800,
+    stun_damage: 0,
+    gauge_gain_on_hit: 0,
+    gauge_gain_on_block: 0,
+    on_hit_advantage: -999,
+    on_block_advantage: -10,
+    power_cost: 1000,
+    cancel_windows: [],
+    frames: [
+        // Startup (1-4): super flash / cinematic pause
+        (
+            frame_range: (start: 1, end: 4),
+            hitboxes: [],
+            hurtboxes: [
+                (rect: (x: -2000, y: 0, w: 4000, h: 8000)),
+            ],
+            pushbox: (rect: (x: -1500, y: 0, w: 3000, h: 8000)),
+        ),
+        // Active (5-12): multi-hit beam projectile
+        (
+            frame_range: (start: 5, end: 8),
+            hitboxes: [
+                (
+                    rect: (x: 2000, y: -5500, w: 12000, h: 4000),
+                    damage: 1000,
+                    hitstun: 8,
+                    blockstun: 6,
+                    knockback: (x: 5000, y: 0),
+                    hit_type: "mid",
+                ),
+            ],
+            hurtboxes: [
+                (rect: (x: -2000, y: 0, w: 4000, h: 8000)),
+            ],
+            pushbox: (rect: (x: -1500, y: 0, w: 3000, h: 8000)),
+        ),
+        (
+            frame_range: (start: 9, end: 12),
+            hitboxes: [
+                (
+                    rect: (x: 2000, y: -5500, w: 14000, h: 4000),
+                    damage: 1800,
+                    hitstun: 22,
+                    blockstun: 16,
+                    knockback: (x: 40000, y: 0),
+                    hit_type: "mid",
+                ),
+            ],
+            hurtboxes: [
+                (rect: (x: -2000, y: 0, w: 4000, h: 8000)),
+            ],
+            pushbox: (rect: (x: -1500, y: 0, w: 3000, h: 8000)),
+        ),
+        // Recovery (13-36): long recovery, punishable
+        (
+            frame_range: (start: 13, end: 36),
+            hitboxes: [],
+            hurtboxes: [
+                (rect: (x: -2000, y: 0, w: 4000, h: 8000)),
+            ],
+            pushbox: (rect: (x: -1500, y: 0, w: 3000, h: 8000)),
+        ),
+    ],
+    animation: "ryu_shinku_hadoken_anim",
+    hit_effect: "spark_super",
+    hit_sound: "hit_super_01",
+    block_sound: "block_02",
+)

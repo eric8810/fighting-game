@@ -1,0 +1,107 @@
+// Tatsumaki Senpukyaku (Hurricane Kick) - advancing multi-hit special
+// Startup 5 / Active 16 / Recovery 12 = 33 total frames
+// Input: QCB + Kick
+(
+    id: "ryu_tatsumaki",
+    name: "Tatsumaki Senpukyaku",
+    startup: 5,
+    active: 16,
+    recovery: 12,
+    total_frames: 33,
+    damage: 1400,
+    stun_damage: 100,
+    gauge_gain_on_hit: 25,
+    gauge_gain_on_block: 12,
+    on_hit_advantage: -2,
+    on_block_advantage: -6,
+    cancel_windows: [
+        (start: 6, end: 18, into: ["super"]),
+    ],
+    frames: [
+        // Startup (1-5): jump into spin
+        (
+            frame_range: (start: 1, end: 5),
+            hitboxes: [],
+            hurtboxes: [
+                (rect: (x: -2000, y: 0, w: 4000, h: 8000)),
+            ],
+            pushbox: (rect: (x: -1500, y: 0, w: 3000, h: 8000)),
+        ),
+        // Active hit 1 (6-9): first spin kick
+        (
+            frame_range: (start: 6, end: 9),
+            hitboxes: [
+                (
+                    rect: (x: -2000, y: -6000, w: 7000, h: 4000),
+                    damage: 500,
+                    hitstun: 12,
+                    blockstun: 8,
+                    knockback: (x: 8000, y: 5000),
+                    hit_type: "mid",
+                ),
+            ],
+            hurtboxes: [
+                (rect: (x: -2000, y: -2000, w: 4000, h: 8000)),
+            ],
+            pushbox: (rect: (x: -1500, y: -2000, w: 3000, h: 8000)),
+        ),
+        // Active gap (10-13): between hits, still airborne
+        (
+            frame_range: (start: 10, end: 13),
+            hitboxes: [],
+            hurtboxes: [
+                (rect: (x: -2000, y: -2000, w: 4000, h: 8000)),
+            ],
+            pushbox: (rect: (x: -1500, y: -2000, w: 3000, h: 8000)),
+        ),
+        // Active hit 2 (14-17): second spin kick
+        (
+            frame_range: (start: 14, end: 17),
+            hitboxes: [
+                (
+                    rect: (x: -2000, y: -6000, w: 7000, h: 4000),
+                    damage: 500,
+                    hitstun: 12,
+                    blockstun: 8,
+                    knockback: (x: 8000, y: 5000),
+                    hit_type: "mid",
+                ),
+            ],
+            hurtboxes: [
+                (rect: (x: -2000, y: -2000, w: 4000, h: 8000)),
+            ],
+            pushbox: (rect: (x: -1500, y: -2000, w: 3000, h: 8000)),
+        ),
+        // Active hit 3 (18-21): final spin kick
+        (
+            frame_range: (start: 18, end: 21),
+            hitboxes: [
+                (
+                    rect: (x: -2000, y: -5000, w: 7000, h: 4000),
+                    damage: 400,
+                    hitstun: 16,
+                    blockstun: 10,
+                    knockback: (x: 12000, y: 8000),
+                    hit_type: "mid",
+                ),
+            ],
+            hurtboxes: [
+                (rect: (x: -2000, y: -1000, w: 4000, h: 8000)),
+            ],
+            pushbox: (rect: (x: -1500, y: -1000, w: 3000, h: 8000)),
+        ),
+        // Recovery (22-33): landing
+        (
+            frame_range: (start: 22, end: 33),
+            hitboxes: [],
+            hurtboxes: [
+                (rect: (x: -2000, y: 0, w: 4000, h: 8000)),
+            ],
+            pushbox: (rect: (x: -1500, y: 0, w: 3000, h: 8000)),
+        ),
+    ],
+    animation: "ryu_tatsumaki_anim",
+    hit_effect: "spark_medium",
+    hit_sound: "hit_medium_01",
+    block_sound: "block_02",
+)

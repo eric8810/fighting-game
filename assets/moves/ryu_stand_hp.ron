@@ -1,0 +1,63 @@
+// Standing heavy punch - slow but powerful
+// Startup 8 / Active 4 / Recovery 16 = 28 total frames
+(
+    id: "ryu_stand_hp",
+    name: "Standing Heavy Punch",
+    startup: 8,
+    active: 4,
+    recovery: 16,
+    total_frames: 28,
+    damage: 1000,
+    stun_damage: 80,
+    gauge_gain_on_hit: 15,
+    gauge_gain_on_block: 8,
+    on_hit_advantage: 2,
+    on_block_advantage: -4,
+    cancel_windows: [
+        (start: 9, end: 12, into: ["special", "super"]),
+    ],
+    frames: [
+        // Startup (1-8)
+        (
+            frame_range: (start: 1, end: 8),
+            hitboxes: [],
+            hurtboxes: [
+                (rect: (x: -2000, y: 0, w: 4000, h: 8000)),
+                (rect: (x: 1000, y: -5000, w: 3500, h: 3000)),
+            ],
+            pushbox: (rect: (x: -1500, y: 0, w: 3000, h: 8000)),
+        ),
+        // Active (9-12)
+        (
+            frame_range: (start: 9, end: 12),
+            hitboxes: [
+                (
+                    rect: (x: 1500, y: -6000, w: 6000, h: 3000),
+                    damage: 1000,
+                    hitstun: 18,
+                    blockstun: 14,
+                    knockback: (x: 15000, y: 0),
+                    hit_type: "mid",
+                ),
+            ],
+            hurtboxes: [
+                (rect: (x: -2000, y: 0, w: 4000, h: 8000)),
+                (rect: (x: 1000, y: -6000, w: 6500, h: 3000)),
+            ],
+            pushbox: (rect: (x: -1500, y: 0, w: 3000, h: 8000)),
+        ),
+        // Recovery (13-28)
+        (
+            frame_range: (start: 13, end: 28),
+            hitboxes: [],
+            hurtboxes: [
+                (rect: (x: -2000, y: 0, w: 4000, h: 8000)),
+            ],
+            pushbox: (rect: (x: -1500, y: 0, w: 3000, h: 8000)),
+        ),
+    ],
+    animation: "ryu_stand_hp_anim",
+    hit_effect: "spark_heavy",
+    hit_sound: "hit_heavy_01",
+    block_sound: "block_02",
+)

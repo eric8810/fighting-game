@@ -1,0 +1,62 @@
+// Crouching medium punch - good combo filler
+// Startup 5 / Active 4 / Recovery 9 = 18 total frames
+(
+    id: "ryu_crouch_mp",
+    name: "Crouching Medium Punch",
+    startup: 5,
+    active: 4,
+    recovery: 9,
+    total_frames: 18,
+    damage: 650,
+    stun_damage: 45,
+    gauge_gain_on_hit: 10,
+    gauge_gain_on_block: 5,
+    on_hit_advantage: 5,
+    on_block_advantage: 1,
+    cancel_windows: [
+        (start: 6, end: 9, into: ["special", "super"]),
+    ],
+    frames: [
+        // Startup (1-5)
+        (
+            frame_range: (start: 1, end: 5),
+            hitboxes: [],
+            hurtboxes: [
+                (rect: (x: -2000, y: 0, w: 4500, h: 5000)),
+            ],
+            pushbox: (rect: (x: -1500, y: 0, w: 3000, h: 5000)),
+        ),
+        // Active (6-9)
+        (
+            frame_range: (start: 6, end: 9),
+            hitboxes: [
+                (
+                    rect: (x: 1500, y: -3500, w: 5000, h: 2500),
+                    damage: 650,
+                    hitstun: 14,
+                    blockstun: 10,
+                    knockback: (x: 6000, y: 0),
+                    hit_type: "mid",
+                ),
+            ],
+            hurtboxes: [
+                (rect: (x: -2000, y: 0, w: 4500, h: 5000)),
+                (rect: (x: 1000, y: -3500, w: 5500, h: 2500)),
+            ],
+            pushbox: (rect: (x: -1500, y: 0, w: 3000, h: 5000)),
+        ),
+        // Recovery (10-18)
+        (
+            frame_range: (start: 10, end: 18),
+            hitboxes: [],
+            hurtboxes: [
+                (rect: (x: -2000, y: 0, w: 4500, h: 5000)),
+            ],
+            pushbox: (rect: (x: -1500, y: 0, w: 3000, h: 5000)),
+        ),
+    ],
+    animation: "ryu_crouch_mp_anim",
+    hit_effect: "spark_medium",
+    hit_sound: "hit_medium_01",
+    block_sound: "block_01",
+)
