@@ -243,9 +243,11 @@ impl ApplicationHandler for App {
         let ryu_path = "./assets/sprites/fighters/ryu.png";
         let fighter_texture = match std::fs::read(ryu_path) {
             Ok(bytes) => {
+                log::info!("Loaded {} bytes from {}", bytes.len(), ryu_path);
                 match Texture::load_from_bytes(&ctx.device, &ctx.queue, &bytes, "ryu_texture") {
                     Ok(texture) => {
-                        log::info!("Fighter sprites loaded successfully");
+                        log::info!("Fighter sprites loaded successfully: {}x{}",
+                                  texture.size.0, texture.size.1);
                         Some(texture)
                     }
                     Err(e) => {
@@ -261,6 +263,7 @@ impl ApplicationHandler for App {
         };
         self.fighter_texture = fighter_texture;
         self.use_sprites = self.fighter_texture.is_some();
+        log::info!("use_sprites = {}", self.use_sprites);
 
         self.render_ctx = Some(ctx);
         log::info!("All renderers initialized successfully");
@@ -793,6 +796,14 @@ impl App {
                 let v0 = (row as f32 * FRAME_H) / TEXTURE_H;
                 let uw_norm = FRAME_W / TEXTURE_W;
                 let vh_norm = FRAME_H / TEXTURE_H;
+
+                // Debug logging (first frame only to avoid spam)
+                if sm.state.state_frame == 0 {
+                    log::info!(
+                        "Sprite UV: state={:?}, row={}, frame={}, uv=[{:.3},{:.3},{:.3},{:.3}]",
+                        sm.current_state(), row, frame, u0, v0, uw_norm, vh_norm
+                    );
+                }
 
                 (u0, v0, uw_norm, vh_norm)
             } else {
