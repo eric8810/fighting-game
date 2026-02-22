@@ -75,11 +75,17 @@
 
 - [x] 在渲染时根据 `Facing::LEFT` 翻转 UV.x
 
-### 1.4 动画系统集成（⏸️ 待完成）
+### 1.4 动画系统集成（✅ 完成）
 
-- [ ] 为 Fighter 实体添加 `SpriteAnimation` 组件
-- [ ] 实现 `state_to_animation(StateType)` 映射
-- [ ] 在状态切换时重置动画
+- [x] 为 Fighter 实体添加 `SpriteAnimation` 组件（通过 StateMachine）
+- [x] 实现 `state_to_animation(StateType)` 映射（UV 坐标计算）
+- [x] 在状态切换时重置动画（state_frame 自动管理）
+
+**实现细节：**
+- 根据 StateType 映射到精灵表的对应行
+- 根据 state_frame 计算当前帧
+- 8帧持续时间（12 FPS @ 60Hz）
+- UV 坐标自动归一化到 0-1 范围
 
 ### 1.5 图集配置格式（✅ 已定义）
 
