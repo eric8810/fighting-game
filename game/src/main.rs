@@ -691,7 +691,6 @@ impl App {
         let alpha = result.alpha;
         let screen_w = ctx.size.width as f32;
         let screen_h = ctx.size.height as f32;
-        let mut instances = Vec::new();
 
         let ground_screen_y = screen_h - 100.0; // ground at 100px from bottom
 
@@ -709,18 +708,24 @@ impl App {
         }
         let camera_x = self.stage.camera_x;
 
+        // Background quads (no texture)
+        let mut bg_instances: Vec<QuadInstance> = Vec::with_capacity(64);
+
         // Stage background layers (rendered behind everything).
-        instances.extend(
+        bg_instances.extend(
             self.stage
                 .render_layers(screen_w, screen_h, ground_screen_y),
         );
 
         // Ground line (scrolls with camera).
-        instances.push(QuadInstance {
+        bg_instances.push(QuadInstance {
             rect: [-camera_x, ground_screen_y, screen_w + camera_x * 2.0, 4.0],
             color: [0.3, 0.3, 0.3, 1.0],
             ..Default::default()
         });
+
+        // Fighter quads (with texture)
+        let mut fighter_instances: Vec<QuadInstance> = Vec::with_capacity(2);
 
         // Fighters.
         for (_, (pos, prev, facing, _hp, color)) in self
@@ -750,7 +755,7 @@ impl App {
                 [1.0, 0.0, -1.0, 1.0]  // Flipped horizontally (swap u and w)
             };
 
-            instances.push(QuadInstance {
+            fighter_instances.push(QuadInstance {
                 rect: [screen_x, screen_y, FIGHTER_W, FIGHTER_H],
                 color: if self.use_sprites {
                     [1.0, 1.0, 1.0, 1.0]  // White tint for textured sprites
@@ -762,10 +767,10 @@ impl App {
         }
 
         // UI overlay (health bars, gauges, timer, combo).
-        instances.extend(self.ui_renderer.render(&self.world, screen_w));
+        bg_instances.extend(self.ui_renderer.render(&self.world, screen_w));
 
         // Menu overlay (main menu, pause, round/match end).
-        instances.extend(self.menu.render(screen_w, screen_h));
+        bg_instances.extend(self.menu.render(screen_w, screen_h));
 
         // Collect text areas.
         let mut text_areas: Vec<TextArea> = Vec::new();
@@ -789,7 +794,7 @@ impl App {
                 label: Some("frame_encoder"),
             });
 
-        // Pass 1: quads (clears screen + draws all colored rectangles).
+        // Pass 1: Background + UI (no texture, clears screen).
         qr.draw(
             &ctx.device,
             &mut encoder,
@@ -797,7 +802,19 @@ impl App {
             &ctx.queue,
             ctx.size.width as f32,
             ctx.size.height as f32,
-            &instances,
+            &bg_instances,
+            None, // No texture for background/UI
+        );
+
+        // Pass 2: Fighters (with texture, no screen clear).
+        qr.draw_overlay(
+            &ctx.device,
+            &mut encoder,
+            &view,
+            &ctx.queue,
+            ctx.size.width as f32,
+            ctx.size.height as f32,
+            &fighter_instances,
             self.fighter_texture.as_ref(),
         );
 

@@ -386,6 +386,56 @@ impl QuadRenderer {
         instances: &[QuadInstance],
         texture: Option<&Texture>,
     ) {
+        self.draw_internal(
+            device,
+            encoder,
+            target,
+            queue,
+            screen_width,
+            screen_height,
+            instances,
+            texture,
+            true, // clear screen
+        )
+    }
+
+    /// Draw a batch of quads without clearing the screen (for layered rendering)
+    pub fn draw_overlay(
+        &self,
+        device: &wgpu::Device,
+        encoder: &mut wgpu::CommandEncoder,
+        target: &wgpu::TextureView,
+        queue: &wgpu::Queue,
+        screen_width: f32,
+        screen_height: f32,
+        instances: &[QuadInstance],
+        texture: Option<&Texture>,
+    ) {
+        self.draw_internal(
+            device,
+            encoder,
+            target,
+            queue,
+            screen_width,
+            screen_height,
+            instances,
+            texture,
+            false, // don't clear screen
+        )
+    }
+
+    fn draw_internal(
+        &self,
+        device: &wgpu::Device,
+        encoder: &mut wgpu::CommandEncoder,
+        target: &wgpu::TextureView,
+        queue: &wgpu::Queue,
+        screen_width: f32,
+        screen_height: f32,
+        instances: &[QuadInstance],
+        texture: Option<&Texture>,
+        clear_screen: bool,
+    ) {
         let count = instances.len().min(self.max_instances);
         if count == 0 {
             return;
@@ -401,6 +451,17 @@ impl QuadRenderer {
             bytemuck::cast_slice(&instances[..count]),
         );
 
+        let load_op = if clear_screen {
+            wgpu::LoadOp::Clear(wgpu::Color {
+                r: 0.05,
+                g: 0.05,
+                b: 0.08,
+                a: 1.0,
+            })
+        } else {
+            wgpu::LoadOp::Load
+        };
+
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("quad_pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -408,12 +469,7 @@ impl QuadRenderer {
                 depth_slice: None,
                 resolve_target: None,
                 ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color {
-                        r: 0.05,
-                        g: 0.05,
-                        b: 0.08,
-                        a: 1.0,
-                    }),
+                    load: load_op,
                     store: wgpu::StoreOp::Store,
                 },
             })],
