@@ -27,15 +27,18 @@
 
 - [ ] 使用现有测试音乐
 
-### 0.4 音效（✅ 已下载，待集成）
+### 0.4 音效（✅ 完成）
 
 - [x] 从 GitHub 下载音效
   - Source: https://github.com/harbiabderrhamane/fighting-game
-  - ✅ `assets/sounds/hit_light_temp.mp3` (9.7KB)
-  - ✅ `assets/sounds/hit_medium_temp.mp3` (6.7KB)
-  - ✅ `assets/sounds/hit_heavy_temp.mp3` (6.7KB)
-  - ✅ `assets/sounds/ko_temp.mp3` (30KB)
-- [ ] 集成到游戏（需替换现有 WAV）
+  - ✅ `assets/sounds/hit_light.mp3` (9.7KB)
+  - ✅ `assets/sounds/hit_medium.mp3` (6.7KB)
+  - ✅ `assets/sounds/hit_heavy.mp3` (6.7KB)
+  - ✅ `assets/sounds/ko.mp3` (30KB)
+- [x] 集成到游戏
+  - ✅ 更新音频系统支持 MP3 格式
+  - ✅ 添加 KO 音效触发事件
+  - ✅ 在回合结束时播放 KO 音效
 
 ---
 
@@ -63,14 +66,14 @@
 - [x] 修改 shader 支持纹理采样
 - [x] 修复所有 QuadInstance 初始化错误（使用 `..Default::default()`）
 - [x] 游戏编译成功并运行
-- [ ] 修改 `tick_and_render` 使用精灵而非方块
-- [ ] 根据 `Facing` 组件设置 UV 镜像
+- [x] 修改 `tick_and_render` 使用精灵而非方块（✅ UV mirroring implemented）
+- [x] 根据 `Facing` 组件设置 UV 镜像（✅ 完成）
 
-**当前状态：** ✅ 编译成功，游戏运行正常，暂时使用纯色方块渲染
+**当前状态：** ✅ UV镜像已实现，根据面向自动翻转精灵
 
-### 1.3 精灵翻转（⏸️ 待完成）
+### 1.3 精灵翻转（✅ 完成）
 
-- [ ] 在渲染时根据 `Facing::LEFT` 翻转 UV.x
+- [x] 在渲染时根据 `Facing::LEFT` 翻转 UV.x
 
 ### 1.4 动画系统集成（⏸️ 待完成）
 

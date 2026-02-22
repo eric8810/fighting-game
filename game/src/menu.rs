@@ -1,4 +1,5 @@
 use hecs::World;
+use tickle_audio;
 use tickle_core::{
     Health, LogicVec2, Position, PowerGauge, PreviousPosition, StateMachine, Velocity,
 };
@@ -251,17 +252,17 @@ impl MenuSystem {
     }
 
     /// Called each logic frame. Returns true if the world should be reset for a new round.
-    pub fn update_round(&mut self, world: &World, ui: &UIRenderer) -> bool {
+    pub fn update_round(&mut self, world: &World, ui: &UIRenderer) -> (bool, Option<tickle_audio::AudioEvent>) {
         // Handle round intro animation
         if self.game_state == GameState::RoundIntro {
-            return self.tick_round_intro();
+            return (self.tick_round_intro(), None);
         }
 
         if self.game_state == GameState::RoundEnd {
-            return self.tick_round_end();
+            return (self.tick_round_end(), None);
         }
         if self.game_state != GameState::Fighting {
-            return false;
+            return (false, None);
         }
 
         // Training mode: refill health each frame if infinite HP is on.
@@ -272,7 +273,7 @@ impl MenuSystem {
             for (_, (_, hp)) in world.query::<(&Player2, &mut Health)>().iter() {
                 hp.current = hp.max;
             }
-            return false;
+            return (false, None);
         }
 
         // Check KO.
@@ -300,8 +301,9 @@ impl MenuSystem {
             self.round_winner = if winner > 0 { Some(winner) } else { None };
             self.round_end_timer = ROUND_END_FREEZE_FRAMES;
             self.game_state = GameState::RoundEnd;
+            return (false, Some(tickle_audio::AudioEvent::PlayKOSound));
         }
-        false
+        (false, None)
     }
 
     fn start_round_intro(&mut self) {

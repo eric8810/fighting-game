@@ -550,6 +550,7 @@ impl App {
         let stage = &self.stage;
         let menu = &mut self.menu;
         let prev_states = &mut self.prev_states;
+        let audio = &mut self.audio;
 
         let result = self.game_loop.tick(|| {
             if menu.should_run_logic() {
@@ -597,7 +598,12 @@ impl App {
                 );
                 *prev_states = (p1_post, p2_post);
 
-                let new_round = menu.update_round(world, ui);
+                let (new_round, round_audio) = menu.update_round(world, ui);
+                if let Some(audio_evt) = round_audio {
+                    if let Some(ref mut audio_sys) = audio {
+                        process_audio_events(audio_sys, &[audio_evt]);
+                    }
+                }
                 if new_round {
                     MenuSystem::reset_fighters(world);
                     ui.reset();
@@ -605,7 +611,7 @@ impl App {
                 (hit_events, state_changes, new_round)
             } else {
                 // Still need to tick round-end timer even when logic is paused.
-                let new_round = menu.update_round(world, ui);
+                let (new_round, _) = menu.update_round(world, ui);
                 if new_round {
                     MenuSystem::reset_fighters(world);
                     ui.reset();
@@ -717,7 +723,7 @@ impl App {
         });
 
         // Fighters.
-        for (_, (pos, prev, _facing, _hp, color)) in self
+        for (_, (pos, prev, facing, _hp, color)) in self
             .world
             .query::<(
                 &Position,
@@ -737,10 +743,21 @@ impl App {
             let screen_x = x - FIGHTER_W / 2.0 - camera_x;
             let screen_y = ground_screen_y - y - FIGHTER_H;
 
+            // UV coordinates with horizontal flip based on facing direction
+            let uv = if facing.dir == Facing::RIGHT {
+                [0.0, 0.0, 1.0, 1.0]  // Normal
+            } else {
+                [1.0, 0.0, -1.0, 1.0]  // Flipped horizontally (swap u and w)
+            };
+
             instances.push(QuadInstance {
                 rect: [screen_x, screen_y, FIGHTER_W, FIGHTER_H],
-                color: color.0,
-                uv: [0.0, 0.0, 1.0, 1.0], // Full texture
+                color: if self.use_sprites {
+                    [1.0, 1.0, 1.0, 1.0]  // White tint for textured sprites
+                } else {
+                    color.0  // Colored quads
+                },
+                uv,
             });
         }
 

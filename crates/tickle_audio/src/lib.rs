@@ -226,6 +226,7 @@ impl HitStrength {
 pub enum AudioEvent {
     PlayHitSound { strength: HitStrength },
     PlayActionSound { id: String },
+    PlayKOSound,
     PlayMusic { id: String, looping: bool },
     StopMusic,
 }
@@ -238,6 +239,7 @@ pub fn process_audio_events(audio: &mut AudioSystem, events: &[AudioEvent]) {
                 audio.play_sound(strength.sound_id()).map(|_| ())
             }
             AudioEvent::PlayActionSound { id } => audio.play_sound(id).map(|_| ()),
+            AudioEvent::PlayKOSound => audio.play_sound("ko").map(|_| ()),
             AudioEvent::PlayMusic { id, looping } => audio.play_music(id, *looping),
             AudioEvent::StopMusic => {
                 audio.stop_music();
@@ -252,22 +254,26 @@ pub fn process_audio_events(audio: &mut AudioSystem, events: &[AudioEvent]) {
 
 /// Load the standard set of fighting game sound effects.
 /// Call this during initialization after creating the AudioSystem.
-/// Tries .ogg first, falls back to .wav.
+/// Tries .ogg first, falls back to .wav, then .mp3.
 pub fn load_default_sounds(audio: &mut AudioSystem) -> AudioResult<()> {
     let sounds = [
         ("hit_light", "sounds/hit_light"),
         ("hit_medium", "sounds/hit_medium"),
         ("hit_heavy", "sounds/hit_heavy"),
+        ("ko", "sounds/ko"),
     ];
     for (id, base_path) in &sounds {
         let ogg = format!("{}.ogg", base_path);
         let wav = format!("{}.wav", base_path);
+        let mp3 = format!("{}.mp3", base_path);
         if Path::new(&audio.assets_root.join(&ogg)).exists() {
             audio.load_sound(id, &ogg)?;
         } else if Path::new(&audio.assets_root.join(&wav)).exists() {
             audio.load_sound(id, &wav)?;
+        } else if Path::new(&audio.assets_root.join(&mp3)).exists() {
+            audio.load_sound(id, &mp3)?;
         } else {
-            log::warn!("Default sound file not found: {} (.ogg or .wav)", base_path);
+            log::warn!("Default sound file not found: {} (.ogg, .wav, or .mp3)", base_path);
         }
     }
     Ok(())
