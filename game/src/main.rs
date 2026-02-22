@@ -13,10 +13,11 @@ use tickle_audio::{
     process_audio_events,
 };
 use tickle_core::{
-    Direction, Facing, Health, InputState, LogicVec2, Position,
+    Direction, Facing, Health, Hitbox, HitType, InputState, LogicRect, LogicVec2, Position,
     PowerGauge, PreviousPosition, StateMachine, StateType, Velocity, BUTTON_A,
 };
 use tickle_core::systems::audio_events::{audio_events_from_hits, GameAudioEvent, HitSoundStrength};
+use tickle_core::systems::collision::HitEvent;
 use tickle_render::RenderContext;
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, WindowEvent};
@@ -498,14 +499,20 @@ impl App {
 
         let result = self.game_loop.tick(|| {
             if menu.should_run_logic() {
-                let audio_events = logic_update(world, &p1_input, &p2_input, stage);
+                let hit_events = logic_update(world, &p1_input, &p2_input, stage);
                 ui.update(world);
+
+                // Register hits for combo counter
+                for hit in &hit_events {
+                    ui.register_hit(hit.attacker == 0);
+                }
+
                 let new_round = menu.update_round(world, ui);
                 if new_round {
                     MenuSystem::reset_fighters(world);
                     ui.reset();
                 }
-                audio_events
+                hit_events
             } else {
                 Vec::new()
             }
@@ -513,8 +520,9 @@ impl App {
 
         // Process audio events from all logic updates.
         if let Some(audio) = self.audio.as_mut() {
-            for audio_events in &result.results {
-                let audio_events: Vec<AudioEvent> = audio_events
+            for hit_events in &result.results {
+                let game_audio_events = audio_events_from_hits(hit_events);
+                let audio_events: Vec<AudioEvent> = game_audio_events
                     .iter()
                     .filter_map(|ge| match ge {
                         GameAudioEvent::HitSound { strength } => {
