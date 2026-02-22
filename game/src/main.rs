@@ -487,6 +487,7 @@ impl App {
                 self.ui_renderer.reset();
                 self.p1_input = RawInput::default();
                 self.p2_input = RawInput::default();
+                self.music_started = false;
             }
         }
 
@@ -496,51 +497,110 @@ impl App {
         let ui = &mut self.ui_renderer;
         let stage = &self.stage;
         let menu = &mut self.menu;
+        let prev_states = &mut self.prev_states;
 
         let result = self.game_loop.tick(|| {
             if menu.should_run_logic() {
-                let hit_events = logic_update(world, &p1_input, &p2_input, stage);
-                ui.update(world);
+                // Capture pre-update states for change detection.
+                let mut p1_pre = StateType::Idle;
+                let mut p2_pre = StateType::Idle;
+                for (_, (_, sm)) in world.query::<(&Player1, &StateMachine)>().iter() {
+                    p1_pre = sm.current_state();
+                }
+                for (_, (_, sm)) in world.query::<(&Player2, &StateMachine)>().iter() {
+                    p2_pre = sm.current_state();
+                }
 
-                // Register hits for combo counter
+                let hit_events = logic_update(world, &p1_input, &p2_input, stage);
+
+                // Register hits for combo counter.
                 for hit in &hit_events {
                     ui.register_hit(hit.attacker == 0);
                 }
+
+                ui.update(world);
+
+                // Capture post-update states.
+                let mut p1_post = StateType::Idle;
+                let mut p2_post = StateType::Idle;
+                for (_, (_, sm)) in world.query::<(&Player1, &StateMachine)>().iter() {
+                    p1_post = sm.current_state();
+                }
+                for (_, (_, sm)) in world.query::<(&Player2, &StateMachine)>().iter() {
+                    p2_post = sm.current_state();
+                }
+
+                let state_changes = (
+                    if p1_pre != p1_post { Some(p1_post) } else { None },
+                    if p2_pre != p2_post { Some(p2_post) } else { None },
+                );
+                *prev_states = (p1_post, p2_post);
 
                 let new_round = menu.update_round(world, ui);
                 if new_round {
                     MenuSystem::reset_fighters(world);
                     ui.reset();
                 }
-                hit_events
+                (hit_events, state_changes, new_round)
             } else {
-                Vec::new()
+                (Vec::new(), (None, None), false)
             }
         });
 
         // Process audio events from all logic updates.
         if let Some(audio) = self.audio.as_mut() {
-            for hit_events in &result.results {
-                let game_audio_events = audio_events_from_hits(hit_events);
-                let audio_events: Vec<AudioEvent> = game_audio_events
+            // Start background music when entering fighting state.
+            if self.menu.game_state == GameState::Fighting && !self.music_started {
+                let _ = audio.play_music("stage_theme", true);
+                self.music_started = true;
+            }
+            // Stop music when leaving fighting state (except pause).
+            if self.menu.game_state != GameState::Fighting
+                && self.menu.game_state != GameState::Paused
+                && self.music_started
+            {
+                audio.stop_music();
+                self.music_started = false;
+            }
+
+            for (hit_events, state_changes, _new_round) in &result.results {
+                // Generate and play audio events from hits.
+                let game_audio = audio_events_from_hits(hit_events);
+                let hit_audio: Vec<AudioEvent> = game_audio
                     .iter()
-                    .filter_map(|ge| match ge {
+                    .map(|ge| match ge {
                         GameAudioEvent::HitSound { strength } => {
-                            let hit_strength = match strength {
+                            let hs = match strength {
                                 HitSoundStrength::Light => HitStrength::Light,
                                 HitSoundStrength::Medium => HitStrength::Medium,
                                 HitSoundStrength::Heavy => HitStrength::Heavy,
                             };
-                            Some(AudioEvent::PlayHitSound { strength: hit_strength })
+                            AudioEvent::PlayHitSound { strength: hs }
                         }
-                        GameAudioEvent::RoundStart => Some(AudioEvent::PlayMusic {
-                            id: "stage_theme".to_string(),
-                            looping: true
-                        }),
-                        _ => None,
+                        _ => AudioEvent::StopMusic, // unreachable for hit-derived events
                     })
                     .collect();
-                process_audio_events(audio, &audio_events);
+                process_audio_events(audio, &hit_audio);
+
+                // Play sounds for state changes (hitstun/blockstun).
+                let mut state_audio = Vec::new();
+                if let Some(new_state) = state_changes.0 {
+                    if matches!(new_state, StateType::Hitstun | StateType::Blockstun) {
+                        state_audio.push(AudioEvent::PlayActionSound {
+                            id: "hit_light".to_string(),
+                        });
+                    }
+                }
+                if let Some(new_state) = state_changes.1 {
+                    if matches!(new_state, StateType::Hitstun | StateType::Blockstun) {
+                        state_audio.push(AudioEvent::PlayActionSound {
+                            id: "hit_light".to_string(),
+                        });
+                    }
+                }
+                if !state_audio.is_empty() {
+                    process_audio_events(audio, &state_audio);
+                }
             }
         }
 
