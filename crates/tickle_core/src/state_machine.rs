@@ -108,7 +108,19 @@ impl StateMachine {
         };
 
         if let Some(new_state) = desired {
-            self.enter_state(new_state);
+            if let StateType::Attack(id) = new_state {
+                // Default attack data: 30 frames total, cancel window at frames 5-20.
+                self.enter_attack(id, AttackData {
+                    total_frames: 30,
+                    cancel_windows: vec![CancelWindow {
+                        start_frame: 5,
+                        end_frame: 20,
+                        allowed: CancelTarget::Any,
+                    }],
+                });
+            } else {
+                self.enter_state(new_state);
+            }
         }
         desired
     }
