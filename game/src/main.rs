@@ -791,12 +791,14 @@ impl App {
 
         // Pass 1: quads (clears screen + draws all colored rectangles).
         qr.draw(
+            &ctx.device,
             &mut encoder,
             &view,
             &ctx.queue,
             ctx.size.width as f32,
             ctx.size.height as f32,
             &instances,
+            self.fighter_texture.as_ref(),
         );
 
         // Pass 2: text (LoadOp::Load - draws on top without clearing).
