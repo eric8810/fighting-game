@@ -44,8 +44,9 @@ const JUMP_VEL: i32 = 1800; // 18 px/frame upward
 const FRICTION: i32 = 50;
 
 /// Fighter visual size in pixels for rendering.
-const FIGHTER_W: f32 = 60.0;
-const FIGHTER_H: f32 = 100.0;
+/// Matches the sprite sheet frame size (100x109) to avoid distortion.
+const FIGHTER_W: f32 = 100.0;
+const FIGHTER_H: f32 = 109.0;
 
 // ---------------------------------------------------------------------------
 // Player tag components
@@ -484,12 +485,14 @@ fn logic_update(
         // Apply hit damage to defenders.
         for hit in &hit_events {
             if hit.defender == 1 {
-                for (_, (_, hp)) in world.query_mut::<(&Player2, &mut Health)>() {
+                for (_, (_, hp, sm)) in world.query_mut::<(&Player2, &mut Health, &mut StateMachine)>() {
                     hp.take_damage(hit.hitbox.damage);
+                    sm.force_enter(StateType::Hitstun, hit.hitbox.hitstun);
                 }
             } else {
-                for (_, (_, hp)) in world.query_mut::<(&Player1, &mut Health)>() {
+                for (_, (_, hp, sm)) in world.query_mut::<(&Player1, &mut Health, &mut StateMachine)>() {
                     hp.take_damage(hit.hitbox.damage);
+                    sm.force_enter(StateType::Hitstun, hit.hitbox.hitstun);
                 }
             }
         }
@@ -752,62 +755,56 @@ impl App {
             let screen_x = x - FIGHTER_W / 2.0 - camera_x;
             let screen_y = ground_screen_y - y - FIGHTER_H;
 
-            // Calculate UV coordinates based on animation state
+            // Calculate UV coordinates based on animation state.
+            // Sprite sheet layout: 100x109 per frame, 6 cols x 6 rows, 600x654 total.
             let (u, v, uw, vh) = if self.use_sprites {
-                // Sprite sheet layout: 100x116 per frame, 6 columns
                 const FRAME_W: f32 = 100.0;
-                const FRAME_H: f32 = 116.0;
+                const FRAME_H: f32 = 109.0;
                 const TEXTURE_W: f32 = 600.0;
                 const TEXTURE_H: f32 = 654.0;
 
-                // Map state to animation row
-                let row = match sm.current_state() {
-                    StateType::Idle => 0,
-                    StateType::WalkForward => 1,
-                    StateType::WalkBackward => 2,
-                    StateType::Run => 1,
-                    StateType::Crouch => 4,
-                    StateType::Jump => 3,
-                    StateType::Attack(_) => 5,
-                    StateType::Hitstun => 7,
-                    StateType::Blockstun => 7,
-                    StateType::Knockdown => 8,
+                // Sprite sheet layout (verified against ryu.png):
+                //   Row 0: Hadouken attack (6 frames)
+                //   Row 1: Walk cycle     (6 frames)
+                //   Row 2: Kick attack    (6 frames)
+                //   Row 3: Jump arc       (6 frames)
+                //   Row 4: Crouch/low     (3 frames valid, cols 3-5 empty)
+                //   Row 5: Knockdown/getup(6 frames)
+                //
+                // (row, frames, duration_per_frame, looping)
+                let (row, frames, duration, looping) = match sm.current_state() {
+                    StateType::Idle         => (1, 6, 10u32, true),  // walk col 0 as idle stand
+                    StateType::WalkForward  => (1, 6,  6u32, true),
+                    StateType::WalkBackward => (1, 6,  6u32, true),  // no dedicated back-walk row
+                    StateType::Run          => (1, 6,  4u32, true),
+                    StateType::Crouch       => (4, 3,  4u32, false),
+                    StateType::Jump         => (3, 6,  5u32, false),
+                    StateType::Attack(_)    => (0, 6,  4u32, false), // hadouken row as attack
+                    StateType::Hitstun      => (2, 3,  4u32, false), // first 3 frames of kick row
+                    StateType::Blockstun    => (2, 3,  4u32, false),
+                    StateType::Knockdown    => (5, 6,  5u32, false),
                 };
 
-                // Number of frames in this animation
-                let frames_in_row = match sm.current_state() {
-                    StateType::Idle => 4,
-                    StateType::WalkForward => 5,
-                    StateType::WalkBackward => 5,
-                    StateType::Run => 5,
-                    StateType::Crouch => 2,
-                    StateType::Jump => 6,
-                    StateType::Attack(_) => 5,
-                    StateType::Hitstun => 3,
-                    StateType::Blockstun => 3,
-                    StateType::Knockdown => 6,
+                // Advance through frames; clamp at last frame for non-looping animations.
+                let elapsed = sm.state.state_frame / duration.max(1);
+                let frame = if looping {
+                    (elapsed % frames) as i32
+                } else {
+                    elapsed.min(frames - 1) as i32
                 };
 
-                // Calculate current frame (cycles through animation)
-                let frame = (sm.state.state_frame / 8) as i32 % frames_in_row;
-
-                // Calculate UV coordinates (normalized 0-1)
                 let u0 = (frame as f32 * FRAME_W) / TEXTURE_W;
                 let v0 = (row as f32 * FRAME_H) / TEXTURE_H;
                 let uw_norm = FRAME_W / TEXTURE_W;
                 let vh_norm = FRAME_H / TEXTURE_H;
 
-                // Debug logging (first frame only to avoid spam)
-                if sm.state.state_frame == 0 {
-                    log::info!(
-                        "Sprite UV: state={:?}, row={}, frame={}, uv=[{:.3},{:.3},{:.3},{:.3}]",
-                        sm.current_state(), row, frame, u0, v0, uw_norm, vh_norm
-                    );
-                }
+                log::debug!(
+                    "Sprite UV: state={:?}, row={}, frame={}, uv=[{:.3},{:.3},{:.3},{:.3}]",
+                    sm.current_state(), row, frame, u0, v0, uw_norm, vh_norm
+                );
 
                 (u0, v0, uw_norm, vh_norm)
             } else {
-                // Default: full texture
                 (0.0, 0.0, 1.0, 1.0)
             };
 

@@ -7,7 +7,7 @@ members = [
     "crates/tickle_network",
     "crates/tickle_assets",
     "game",
-    "tools/game-test",
+    "tools/game-test", "crates/tickle_mugen",
 ]
 
 [workspace.package]

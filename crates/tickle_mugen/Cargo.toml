@@ -1,0 +1,14 @@
+[package]
+name = "tickle_mugen"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+thiserror = "2.0"
+bytemuck = "1.14"
+log = "0.4"
+mugen-sff = { git = "https://github.com/reu/rugen", package = "mugen-sff" }
+
+[dev-dependencies]

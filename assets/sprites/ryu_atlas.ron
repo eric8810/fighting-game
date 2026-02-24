@@ -1,26 +1,34 @@
 // Fighter sprite atlas configuration
-// Ryu sprite sheet: 600x654, grid layout
+// ryu.png: 600x654, 6 cols x 6 rows, 100x109 per frame
+//
+// Actual row content (verified visually):
+//   Row 0: Hadouken / punch attack  (6 frames)
+//   Row 1: Walk cycle               (6 frames)
+//   Row 2: Kick attack              (6 frames)
+//   Row 3: Jump arc                 (6 frames)
+//   Row 4: Crouch / low attack      (3 frames, cols 3-5 are empty)
+//   Row 5: Knockdown / get-up       (6 frames)
 
 AtlasConfig(
     texture: "sprites/fighters/ryu.png",
     frame_width: 100,
-    frame_height: 116,
+    frame_height: 109,
     animations: {
         "idle": AnimDef(
-            row: 0,
-            frames: 4,
-            duration: 8,
+            row: 1,
+            frames: 6,
+            duration: 10,
             looping: true,
         ),
         "walk_forward": AnimDef(
             row: 1,
-            frames: 5,
+            frames: 6,
             duration: 6,
             looping: true,
         ),
         "walk_backward": AnimDef(
-            row: 2,
-            frames: 5,
+            row: 1,
+            frames: 6,
             duration: 6,
             looping: true,
         ),
@@ -32,30 +40,30 @@ AtlasConfig(
         ),
         "crouch": AnimDef(
             row: 4,
-            frames: 2,
+            frames: 3,
             duration: 4,
             looping: false,
         ),
         "attack_a": AnimDef(
-            row: 5,
-            frames: 5,
+            row: 0,
+            frames: 6,
             duration: 4,
             looping: false,
         ),
-        "attack_b": AnimDef(
-            row: 6,
+        "attack_kick": AnimDef(
+            row: 2,
             frames: 6,
             duration: 4,
             looping: false,
         ),
         "hitstun": AnimDef(
-            row: 7,
+            row: 2,
             frames: 3,
             duration: 4,
             looping: false,
         ),
         "knockdown": AnimDef(
-            row: 8,
+            row: 5,
             frames: 6,
             duration: 5,
             looping: false,

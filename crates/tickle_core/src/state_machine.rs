@@ -109,12 +109,13 @@ impl StateMachine {
 
         if let Some(new_state) = desired {
             if let StateType::Attack(id) = new_state {
-                // Default attack data: 30 frames total, cancel window at frames 5-20.
+                // Attack animation: 5 frames × 4 duration = 20 total frames.
+                // Cancel window opens at frame 8 (after startup) through frame 16.
                 self.enter_attack(id, AttackData {
-                    total_frames: 30,
+                    total_frames: 20,
                     cancel_windows: vec![CancelWindow {
-                        start_frame: 5,
-                        end_frame: 20,
+                        start_frame: 8,
+                        end_frame: 16,
                         allowed: CancelTarget::Any,
                     }],
                 });
