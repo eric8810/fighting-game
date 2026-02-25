@@ -21,6 +21,7 @@ use tickle_core::{
     PowerGauge, PreviousPosition, StateMachine, StateType, Velocity, BUTTON_A,
 };
 use tickle_render::{RenderContext, Texture};
+use tickle_mugen::{Air, SffV1, SpriteAtlas};
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
@@ -105,9 +106,11 @@ struct App {
     pending_menu_input: MenuInput,
     music_started: bool,
     prev_states: (StateType, StateType),
-    // Fighter sprites
+    // Fighter sprites — KFM (Kung Fu Man) MUGEN character
     fighter_texture: Option<Texture>,
     use_sprites: bool,
+    kfm_atlas: Option<SpriteAtlas>,
+    kfm_air: Option<Air>,
 }
 
 impl App {
@@ -162,7 +165,9 @@ impl App {
             music_started: false,
             prev_states: (StateType::Idle, StateType::Idle),
             fighter_texture: None,
-            use_sprites: false, // Will be set to true after texture loads
+            use_sprites: false,
+            kfm_atlas: None,
+            kfm_air: None,
         }
     }
 }
@@ -239,31 +244,38 @@ impl ApplicationHandler for App {
         self.text_renderer = Some(tr);
         log::info!("Text renderer created");
 
-        // Load fighter sprites before moving ctx
-        log::info!("Loading fighter sprites...");
-        let ryu_path = "./assets/sprites/fighters/ryu.png";
-        let fighter_texture = match std::fs::read(ryu_path) {
-            Ok(bytes) => {
-                log::info!("Loaded {} bytes from {}", bytes.len(), ryu_path);
-                match Texture::load_from_bytes(&ctx.device, &ctx.queue, &bytes, "ryu_texture") {
+        // Load KFM (Kung Fu Man) MUGEN character
+        log::info!("Loading KFM character...");
+        let kfm_base = "./assets/mugen/kfm";
+        match SffV1::load(format!("{}/kfm.sff", kfm_base)) {
+            Ok(sff) => {
+                log::info!("KFM SFF loaded: {} sprites", sff.sprite_count());
+                let atlas = SpriteAtlas::build(&sff);
+                log::info!("KFM atlas built: {}x{}", atlas.width, atlas.height);
+
+                // Upload atlas as GPU texture (raw RGBA bytes)
+                match Texture::from_rgba(
+                    &ctx.device, &ctx.queue,
+                    &atlas.rgba, atlas.width, atlas.height, "kfm_atlas",
+                ) {
                     Ok(texture) => {
-                        log::info!("Fighter sprites loaded successfully: {}x{}",
-                                  texture.size.0, texture.size.1);
-                        Some(texture)
+                        log::info!("KFM atlas uploaded to GPU");
+                        self.fighter_texture = Some(texture);
+                        self.kfm_atlas = Some(atlas);
+                        self.use_sprites = true;
                     }
-                    Err(e) => {
-                        log::warn!("Failed to create fighter texture: {}", e);
-                        None
-                    }
+                    Err(e) => log::warn!("Failed to upload KFM atlas: {}", e),
                 }
             }
-            Err(e) => {
-                log::warn!("Failed to load fighter sprites: {}", e);
-                None
+            Err(e) => log::warn!("Failed to load kfm.sff: {}", e),
+        }
+        match Air::load(format!("{}/kfm.air", kfm_base)) {
+            Ok(air) => {
+                log::info!("KFM AIR loaded: {} actions", air.action_count());
+                self.kfm_air = Some(air);
             }
-        };
-        self.fighter_texture = fighter_texture;
-        self.use_sprites = self.fighter_texture.is_some();
+            Err(e) => log::warn!("Failed to load kfm.air: {}", e),
+        }
         log::info!("use_sprites = {}", self.use_sprites);
 
         self.render_ctx = Some(ctx);
@@ -751,76 +763,75 @@ impl App {
             let x = prev_render[0] + (cur_render[0] - prev_render[0]) * alpha;
             let y = prev_render[1] + (cur_render[1] - prev_render[1]) * alpha;
 
-            // Convert logic coords to screen coords, applying camera offset.
-            let screen_x = x - FIGHTER_W / 2.0 - camera_x;
-            let screen_y = ground_screen_y - y - FIGHTER_H;
-
-            // Calculate UV coordinates based on animation state.
-            // Sprite sheet layout: 100x109 per frame, 6 cols x 6 rows, 600x654 total.
-            let (u, v, uw, vh) = if self.use_sprites {
-                const FRAME_W: f32 = 100.0;
-                const FRAME_H: f32 = 109.0;
-                const TEXTURE_W: f32 = 600.0;
-                const TEXTURE_H: f32 = 654.0;
-
-                // Sprite sheet layout (verified against ryu.png):
-                //   Row 0: Hadouken attack (6 frames)
-                //   Row 1: Walk cycle     (6 frames)
-                //   Row 2: Kick attack    (6 frames)
-                //   Row 3: Jump arc       (6 frames)
-                //   Row 4: Crouch/low     (3 frames valid, cols 3-5 empty)
-                //   Row 5: Knockdown/getup(6 frames)
-                //
-                // (row, frames, duration_per_frame, looping)
-                let (row, frames, duration, looping) = match sm.current_state() {
-                    StateType::Idle         => (1, 6, 10u32, true),  // walk col 0 as idle stand
-                    StateType::WalkForward  => (1, 6,  6u32, true),
-                    StateType::WalkBackward => (1, 6,  6u32, true),  // no dedicated back-walk row
-                    StateType::Run          => (1, 6,  4u32, true),
-                    StateType::Crouch       => (4, 3,  4u32, false),
-                    StateType::Jump         => (3, 6,  5u32, false),
-                    StateType::Attack(_)    => (0, 6,  4u32, false), // hadouken row as attack
-                    StateType::Hitstun      => (2, 3,  4u32, false), // first 3 frames of kick row
-                    StateType::Blockstun    => (2, 3,  4u32, false),
-                    StateType::Knockdown    => (5, 6,  5u32, false),
-                };
-
-                // Advance through frames; clamp at last frame for non-looping animations.
-                let elapsed = sm.state.state_frame / duration.max(1);
-                let frame = if looping {
-                    (elapsed % frames) as i32
-                } else {
-                    elapsed.min(frames - 1) as i32
-                };
-
-                let u0 = (frame as f32 * FRAME_W) / TEXTURE_W;
-                let v0 = (row as f32 * FRAME_H) / TEXTURE_H;
-                let uw_norm = FRAME_W / TEXTURE_W;
-                let vh_norm = FRAME_H / TEXTURE_H;
-
-                log::debug!(
-                    "Sprite UV: state={:?}, row={}, frame={}, uv=[{:.3},{:.3},{:.3},{:.3}]",
-                    sm.current_state(), row, frame, u0, v0, uw_norm, vh_norm
-                );
-
-                (u0, v0, uw_norm, vh_norm)
-            } else {
-                (0.0, 0.0, 1.0, 1.0)
+            // Map state machine state → KFM AIR action number
+            let action_num: u32 = match sm.current_state() {
+                StateType::Idle         => 0,
+                StateType::WalkForward  => 20,
+                StateType::WalkBackward => 21,
+                StateType::Run          => 20,
+                StateType::Crouch       => 11,
+                StateType::Jump         => 41,
+                StateType::Attack(_)    => 200,
+                StateType::Hitstun      => 5000,
+                StateType::Blockstun    => 150,
+                StateType::Knockdown    => 5030,
             };
 
-            // UV coordinates with horizontal flip based on facing direction
+            // Resolve current AIR frame → SFF sprite key
+            let sprite_key: Option<(u16, u16)> = self.kfm_air.as_ref().and_then(|air| {
+                let action = air.get_action(action_num)
+                    .or_else(|| air.get_action(0))?;
+                if action.frames.is_empty() {
+                    return None;
+                }
+                // Advance through frames using per-frame duration
+                let mut tick = sm.state.state_frame as i32;
+                let mut frame_idx = 0usize;
+                for (i, f) in action.frames.iter().enumerate() {
+                    let dur = if f.duration < 0 { i32::MAX } else { f.duration };
+                    if tick < dur {
+                        frame_idx = i;
+                        break;
+                    }
+                    tick -= dur;
+                    frame_idx = i;
+                }
+                // Clamp to last frame for non-looping (duration=-1 on last frame)
+                let frame_idx = frame_idx.min(action.frames.len() - 1);
+                let f = &action.frames[frame_idx];
+                Some((f.group, f.image))
+            });
+
+            // Look up sprite info and UV from atlas
+            let (render_w, render_h, screen_x, screen_y, uv) =
+                if let (Some(atlas), Some((g, i))) = (self.kfm_atlas.as_ref(), sprite_key) {
+                    if let (Some(info), Some(uv)) = (atlas.get_info(g, i), atlas.get_uv(g, i)) {
+                        let w = info.width as f32;
+                        let h = info.height as f32;
+                        // axis_y is distance from top of sprite to ground level
+                        let sx = x - info.axis_x as f32 - camera_x;
+                        let sy = ground_screen_y - y - info.axis_y as f32;
+                        (w, h, sx, sy, uv)
+                    } else {
+                        (FIGHTER_W, FIGHTER_H, x - FIGHTER_W / 2.0 - camera_x, ground_screen_y - y - FIGHTER_H, [0.0, 0.0, 1.0, 1.0])
+                    }
+                } else {
+                    (FIGHTER_W, FIGHTER_H, x - FIGHTER_W / 2.0 - camera_x, ground_screen_y - y - FIGHTER_H, [0.0, 0.0, 1.0, 1.0])
+                };
+
+            // Horizontal flip based on facing direction
             let uv = if facing.dir == Facing::RIGHT {
-                [u, v, uw, vh]  // Normal
+                uv
             } else {
-                [u + uw, v, -uw, vh]  // Flipped horizontally
+                [uv[0] + uv[2], uv[1], -uv[2], uv[3]]
             };
 
             fighter_instances.push(QuadInstance {
-                rect: [screen_x, screen_y, FIGHTER_W, FIGHTER_H],
+                rect: [screen_x, screen_y, render_w, render_h],
                 color: if self.use_sprites {
-                    [1.0, 1.0, 1.0, 1.0]  // White tint for textured sprites
+                    [1.0, 1.0, 1.0, 1.0]
                 } else {
-                    color.0  // Colored quads
+                    color.0
                 },
                 uv,
             });

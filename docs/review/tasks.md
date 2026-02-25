@@ -97,9 +97,9 @@
 | [x] | A-3 | 设计每帧独立尺寸 + 原点偏移的精灵渲染方案 | 见 `docs/review/05-frame-based-sprite-design.md` |
 | [x] | A-4 | 实现 MUGEN SFF v1/v2 解析器（读取精灵图 + 每帧偏移） | `tickle_mugen` crate，KFM 文件在 `assets/mugen/kfm/` |
 | [x] | A-5 | 实现 MUGEN AIR 解析器（读取动画定义 + 每帧碰撞盒） | AIR 格式：每帧含 group/image/duration/clsn 数据 |
-| [ ] | A-6 | 将 `SpriteFrame` 扩展为包含 hitbox/hurtbox/pushbox，状态机切帧时同步更新 `HitboxManager` | `tickle_core/src/systems/animation.rs` |
-| [ ] | A-7 | 渲染层改为按帧的实际尺寸和原点偏移绘制，替换固定矩形 | `game/src/main.rs` 渲染循环 |
-| [ ] | A-8 | 用 KFM（Kung Fu Man）作为第一个测试角色，验证完整管线 | 资源：已下载到 `assets/mugen/kfm/` |
+| [x] | A-6 | 将 `SpriteFrame` 扩展为包含 hitbox/hurtbox/pushbox，状态机切帧时同步更新 `HitboxManager` | `tickle_core/src/systems/animation.rs` |
+| [x] | A-7 | 渲染层改为按帧的实际尺寸和原点偏移绘制，替换固定矩形 | `game/src/main.rs` 渲染循环 |
+| [x] | A-8 | 用 KFM（Kung Fu Man）作为第一个测试角色，验证完整管线 | 资源：已下载到 `assets/mugen/kfm/` |
 
 ---
 

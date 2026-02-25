@@ -10,6 +10,7 @@ tickle_core = { path = "../crates/tickle_core" }
 tickle_render = { path = "../crates/tickle_render" }
 tickle_audio = { path = "../crates/tickle_audio" }
 tickle_network = { path = "../crates/tickle_network" }
+tickle_mugen = { path = "../crates/tickle_mugen" }
 hecs = { workspace = true }
 winit = { workspace = true }
 wgpu = { workspace = true }
