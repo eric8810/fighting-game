@@ -11,8 +11,6 @@ MUGEN characters are defined by several configuration files:
 - `.snd` - Sound data
 - `.act` - Palette files (256 RGB entries, 768 bytes each)
 
-Current status: SFF and AIR parsing complete. CNS/CMD/SND/ACT not yet implemented.
-
 ---
 
 ## File Format Reference (Kyo Kusanagi stats)
@@ -28,39 +26,141 @@ Current status: SFF and AIR parsing complete. CNS/CMD/SND/ACT not yet implemente
 
 ---
 
-## Phase 1 - CNS Parser: StateDef + anim mapping
+## Current Engine Status vs MUGEN Requirements
 
-**Goal**: Read state → anim mapping from `.cns` file, replace hardcoded action_num mapping in `main.rs`.
+### What's already done ✓
+
+| System | Status | Notes |
+|--------|--------|-------|
+| SFF v1/v2 parsing | ✓ Complete | Sprite data, palette, PCX decode |
+| AIR parsing | ✓ Complete | Frame sequences, CLSN boxes |
+| Sprite atlas builder | ✓ Complete | GPU texture upload |
+| Sprite rendering | ✓ Complete | Textured quads, UV mapping, facing flip |
+| Animation frame advance | ✓ Complete | Per-frame duration, looping |
+| Physics (gravity/friction) | ✓ Complete | Integer coords, deterministic |
+| Pushbox separation | ✓ Complete | Prevents character overlap |
+| Hitbox/hurtbox AABB | ✓ Complete | Per-frame collision detection |
+| Combat (damage/hitstun) | ✓ Complete | Combo scaling, knockback |
+| Input buffer | ✓ Complete | 16-frame history |
+| Motion input recognition | ✓ Complete | QCF/QCB/DP/HCF/HCB/dash |
+| Audio system | ✓ Complete | Kira-based, SFX + music |
+| Rollback foundation | ✓ Complete | GGRS types, state snapshots |
+| UI (health/power/timer) | ✓ Complete | HUD rendering |
+
+### What's missing or needs redesign ✗
+
+| System | Status | Gap |
+|--------|--------|-----|
+| CNS parser | ✗ Missing | No state machine config loading |
+| CMD parser | ✗ Missing | No command definition loading |
+| SND parser | ✗ Missing | Can't play character voice/SFX |
+| ACT palette loading | ✗ Missing | Palette variants not supported |
+| MUGEN state machine | ✗ Missing | State driven by hardcoded enum, not CNS |
+| State controller executor | ✗ Missing | No VelSet/ChangeState/HitDef execution |
+| Trigger expression evaluator | ✗ Missing | No CNS trigger language support |
+| Variable system | ✗ Missing | No var(N)/fvar(N) |
+| HitDef integration | ✗ Partial | Combat system exists but not CNS-driven |
+| Projectile entities | ✗ Missing | No projectile spawning/tracking |
+| Visual effects | ✗ Missing | No Explod/AfterImage/PalFX |
+| common1.cns | ✗ Missing | Standard MUGEN states not loaded |
+| DEF file loader | ✗ Missing | Character loaded by hardcoded path |
+| Palette switching | ✗ Missing | Only palette 0 used |
+
+### Systems that need redesign to support MUGEN
+
+| System | Current Design | Required Change |
+|--------|---------------|-----------------|
+| State machine | `StateType` enum (Idle/Walk/Jump/etc.) | Replace with integer state numbers driven by CNS |
+| Input commands | Hardcoded QCF/QCB/DP patterns | Load from `.cmd` file, match against named commands |
+| Move data | RON asset files with frame data | Replaced by CNS HitDef controllers |
+| Physics params | Hardcoded constants | Load from CNS `[Velocity]` / `[Movement]` sections |
+| Character loading | Hardcoded path in main.rs | Load from `.def` file |
+
+---
+
+## What Needs Detailed Design (not ready to implement)
+
+These areas require architectural decisions before coding:
+
+### 1. MUGEN State Machine vs tickle_core State Machine
+
+Currently `tickle_core` has its own `StateType` enum and state machine. MUGEN's CNS defines a completely different state machine. Two options:
+
+- **Option A**: Replace `tickle_core` state machine entirely with CNS-driven system
+- **Option B**: Keep `tickle_core` state machine, map MUGEN states onto it
+
+Option A is cleaner for MUGEN compatibility but breaks the existing deterministic physics/combat systems. Option B preserves existing systems but creates a translation layer that may not cover all MUGEN states.
+
+**Needs decision before Phase 3.**
+
+### 2. Trigger Expression Evaluator Architecture
+
+MUGEN's trigger language is a full expression language with variables, functions, comparisons, and boolean logic. It needs to evaluate expressions like:
+
+```
+ifelse(var(8)=0, const(velocity.jump.neu.x), ifelse(var(8)>0, const(velocity.jump.fwd.x), const(velocity.jump.back.x)))
+```
+
+Options:
+- **Interpreted**: Parse to AST, evaluate at runtime each tick
+- **Compiled**: Compile to bytecode or closures at load time
+
+Performance matters here since triggers run every frame for every state controller. **Needs design before Phase 2.**
+
+### 3. Rollback Compatibility of MUGEN State
+
+MUGEN state includes: state number, var(0..59), fvar(0..39), velocity, position, animation frame, hit flags, projectile list, visual effects. All of this must be serializable for rollback. The current `FighterSnapshot` in `tickle_network` only captures basic physics state.
+
+**Needs design before Phase 3.**
+
+### 4. Projectile Entity System
+
+MUGEN projectiles are full entities with their own state machines (CNS statedefs), physics, and hitboxes. They need to be spawned, tracked, and destroyed. The current ECS (hecs) can support this but the integration with rollback snapshots needs design.
+
+**Needs design before Phase 3.**
+
+### 5. common1.cns
+
+MUGEN's `common1.cns` defines the standard states (0=stand, 20=walk, 40=jump, 5000=hitstun, etc.) that all characters inherit. Without it, characters can't transition to basic states. This file is not included in character packages - it's part of the MUGEN engine itself.
+
+We need to either bundle a compatible `common1.cns` or reimplement the standard states ourselves.
+
+**Needs decision before Phase 2.**
+
+---
+
+## Phase 1 - CNS/CMD/DEF Parsers + anim mapping
+
+**Goal**: Load character from `.def` file, read state → anim mapping from `.cns`, replace all hardcoded mappings.
+
+**Complexity**: Low. Pure parsing, no architectural changes.
 
 ### Tasks
 
+- [ ] `crates/tickle_mugen/src/def.rs`: Parse `.def` file
+  - Extract character name, file references (sff, air, cns, cmd, snd, palN)
 - [ ] `crates/tickle_mugen/src/cns.rs`: Parse `[Statedef N]` blocks
-  - Extract `anim` (action number to play)
-  - Extract `type` (S=Stand, C=Crouch, A=Air)
-  - Extract `physics` (S/C/A/N)
-  - Extract `velset` (initial velocity on state entry)
-  - Extract `ctrl` (control flag)
-  - Extract `movetype` (A=Attack, I=Idle, H=Hit)
-- [ ] `crates/tickle_mugen/src/lib.rs`: Export `Cns` struct with `get_anim(state_num)` API
-- [ ] `game/src/main.rs`: Load `kyo.cns`, replace hardcoded `action_num` match with CNS lookup
-
-### Key CNS format
-
-```ini
-[Statedef 0]       ; state number
-type    = S        ; S=stand, C=crouch, A=air
-physics = S
-anim = 0           ; AIR action number to play
-ctrl = 1           ; player has control
-velset = 0,0       ; set velocity on entry
-movetype = I       ; I=idle, A=attack, H=hit
-```
+  - Extract `anim`, `type` (S/C/A), `physics`, `velset`, `ctrl`, `movetype`
+  - Extract `[Velocity]` and `[Movement]` sections (walk speed, jump velocity, gravity, etc.)
+  - Extract `[Data]` section (life, attack, defence)
+  - Extract `[Size]` section (ground.back, ground.front, height, etc.)
+- [ ] `crates/tickle_mugen/src/cmd.rs`: Parse `.cmd` file
+  - Parse `[Command]` blocks: name, command sequence, time window
+  - Parse `[Statedef -1]` controllers (ChangeState only for now)
+- [ ] `crates/tickle_mugen/src/act.rs`: Parse `.act` palette files
+  - Load 256 RGB entries, support palette switching at runtime
+- [ ] `crates/tickle_mugen/src/snd.rs`: Parse `.snd` file header
+  - Extract sound sample list (group, index, offset, size)
+  - Decode and play samples via `tickle_audio`
+- [ ] `game/src/main.rs`: Load character from `.def`, use CNS anim mapping
 
 ---
 
 ## Phase 2 - State Controller Executor
 
 **Goal**: Execute `[State N, ...]` controllers so the state machine can auto-transition and respond to input/physics.
+
+**Complexity**: Medium. Requires trigger evaluator design decision first.
 
 ### Controller types to implement (from kyo.cns, by frequency)
 
@@ -104,6 +204,23 @@ movetype = I       ; I=idle, A=attack, H=hit
 | `Life` | 1 | Current life |
 | `FrontEdgeDist` | 1 | Distance to front edge |
 
+### CMD trigger variables (from kyo.cmd, by frequency)
+
+| Variable | Count | Description |
+|---------|-------|-------------|
+| `stateno` | 396 | Current state number |
+| `MoveContact` | 374 | Move connected |
+| `command` | 86 | Named command active |
+| `ctrl` | 49 | Player has control |
+| `statetype` | 47 | S/C/A state type |
+| `power` | 15 | Power gauge value |
+| `P2BodyDist X` | 15 | Distance to opponent body |
+| `Time` | 7 | Ticks in state |
+| `PalNo` | 3 | Palette number |
+| `Vel X` | 2 | Velocity X |
+| `NumProjID` | 2 | Active projectile count |
+| `Life` | 1 | Current life |
+
 ### Trigger expression syntax
 
 - Comparisons: `=`, `!=`, `>`, `<`, `>=`, `<=`, `= [lo, hi]`
@@ -114,110 +231,34 @@ movetype = I       ; I=idle, A=attack, H=hit
 
 ### Tasks
 
+- [ ] Design and implement trigger expression evaluator (AST interpreter)
 - [ ] Parse `[State N, label]` blocks with all parameters
-- [ ] Implement trigger expression evaluator (variables + operators above)
 - [ ] Implement all controllers listed above
-- [ ] Integrate with `tickle_core` game loop (run controllers each logic tick)
-- [ ] Pass input state, physics state, animation state as trigger context
+- [ ] Implement `[Statedef -1]` execution from CMD (checked before normal state each tick)
+- [ ] Implement `common1.cns` standard states (bundle or reimplement)
+- [ ] Integrate with `tickle_core` game loop
+- [ ] Variable system: `var(0..59)`, `fvar(0..39)`, rollback-compatible
 
 ---
 
 ## Phase 3 - Full MUGEN State Machine
 
-**Goal**: Full MUGEN compatibility including CMD input system, combat controllers, visual effects, and common1.cns.
+**Goal**: Full MUGEN compatibility. Requires architectural decisions from the "Needs Design" section above.
 
-### CMD file support
+**Complexity**: High. Requires state machine redesign and rollback integration.
 
-The `.cmd` file contains two sections:
-1. `[Command]` blocks - define named input sequences (e.g. `qcf_x = ~D, DF, F, x`)
-2. `[Statedef -1]` - global state checked every tick for input-driven transitions
+### Tasks
 
-```ini
-[Command]
-name = "qcf_x"
-command = ~D, DF, F, x   ; ~ = release, $ = hold, + = simultaneous
-time = 15                 ; input window in frames
-
-[Statedef -1]             ; always-active state
-[State -1, 1]
-type = ChangeState
-value = 1000
-trigger1 = command = "qcf_x"
-trigger1 = ctrl = 1
-```
-
-#### CMD trigger variables (from kyo.cmd)
-
-| Variable | Count | Description |
-|---------|-------|-------------|
-| `stateno` | 396 | Current state number |
-| `MoveContact` | 374 | Move connected |
-| `command` | 86 | Named command active |
-| `ctrl` | 49 | Player has control |
-| `statetype` | 47 | S/C/A state type |
-| `power` | 15 | Power gauge value |
-| `P2BodyDist X` | 15 | Distance to opponent |
-| `Time` | 7 | Ticks in state |
-| `PalNo` | 3 | Palette number |
-| `Vel X` | 2 | Velocity X |
-| `NumProjID` | 2 | Active projectile count |
-| `Life` | 1 | Current life |
-
-#### CMD command syntax
-
-| Token | Meaning |
-|-------|---------|
-| `F/B/U/D` | Directional inputs |
-| `DF/DB/UF/UB` | Diagonal inputs |
-| `x/y/z/a/b/c/s` | Button inputs |
-| `~` prefix | Release input |
-| `$` prefix | Hold input |
-| `+` | Simultaneous inputs |
-| `30$B` | Hold B for 30 frames (charge) |
-
-### Combat controllers (from kyo.cns)
-
-| Controller | Count | Description |
-|-----------|-------|-------------|
-| `HitDef` | 113 | Define attack hitbox and properties |
-| `Explod` | 122 | Spawn visual effect entity |
-| `Projectile` | 56 | Spawn projectile entity |
-| `NotHitBy` | 43 | Invincibility frames |
-| `SuperPause` | 13 | Freeze game for super flash |
-| `EnvShake` | 16 | Screen shake |
-| `BgPalFX` | 11 | Background palette effect |
-| `ReversalDef` | 8 | Counter-attack definition |
-| `ChangeAnim2` | 7 | Change opponent's animation |
-| `AfterImage` | 7 | Motion trail effect |
-| `TargetBind` | 7 | Bind position to target |
-| `RemoveExplod` | 7 | Remove visual effect |
-| `SelfState` | 6 | Change own state (from projectile) |
-| `PalFX` | 4 | Character palette effect |
-| `StopSnd` | 4 | Stop playing sound |
-| `Width` | 7 | Set pushbox width |
-| `LifeAdd` | 3 | Add/subtract life |
-| `GameMakeAnim` | 3 | Spawn stage animation |
-| `EnvColor` | 3 | Full-screen color flash |
-| `PlayerPush` | 2 | Enable/disable pushbox |
-| `MoveHitReset` | 2 | Reset move hit flag |
-| `HitBy` | 2 | Vulnerability definition |
-| `TargetState` | 1 | Change target's state |
-| `TargetPowerAdd` | 1 | Add power to target |
-| `Pause` | 1 | Pause game |
-| `LifeSet` | 1 | Set life to value |
-
-### Additional tasks
-
-- [ ] Complete trigger expression parser (all operators, all system variables)
-- [ ] CMD parser: `[Command]` blocks with full input sequence syntax
-- [ ] CMD `[Statedef -1]` execution (checked every tick before normal state)
-- [ ] `common1.cns` support (standard MUGEN states 0-199, 5000-5120)
-- [ ] Variable system: `var(0..59)`, `fvar(0..39)`, persistent vars, rollback-compatible
-- [ ] ACT palette loading and runtime palette switching (6 palettes per character)
-- [ ] SND file parser and playback integration with `tickle_audio`
-- [ ] All combat controllers listed above
-- [ ] All visual effect controllers (Explod, AfterImage, PalFX, EnvColor, etc.)
-- [ ] Projectile entity system
-- [ ] HitDef / NotHitBy / HitBy combat system integration with `tickle_core`
+- [ ] Decide and implement state machine architecture (Option A or B from design section)
 - [ ] Replace `tickle_core` StateType enum with CNS state numbers
-- [ ] P2 trigger variables (`P2BodyDist`, `P2name`, `P2statetype`, etc.)
+- [ ] Extend `FighterSnapshot` in `tickle_network` to capture full MUGEN state
+- [ ] Complete trigger expression parser (all operators, all system variables)
+- [ ] Combat controllers: `HitDef`, `NotHitBy`, `HitBy`, `ReversalDef`
+- [ ] Projectile entity system with own state machine and rollback support
+- [ ] Visual effect controllers: `Explod`, `AfterImage`, `PalFX`, `BGPalFX`, `EnvColor`, `EnvShake`, `SuperPause`
+- [ ] Target controllers: `TargetBind`, `TargetState`, `TargetPowerAdd`, `ChangeAnim2`
+- [ ] Misc controllers: `Width`, `LifeAdd`, `LifeSet`, `StopSnd`, `GameMakeAnim`, `PlayerPush`, `MoveHitReset`
+- [ ] P2 trigger variables: `P2BodyDist`, `P2name`, `P2statetype`, `P2stateno`, etc.
+- [ ] `NumProjID` and projectile-related triggers
+- [ ] Runtime palette switching via ACT files
+- [ ] Full CMD command syntax: `~` (release), `$` (hold), `+` (simultaneous), charge inputs
