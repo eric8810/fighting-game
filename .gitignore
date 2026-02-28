@@ -19,6 +19,17 @@ Thumbs.db
 assets/temp/
 *.tmp
 
+# Debug output files
+debug_*.png
+debug_*.jpg
+test_render.bat
+
+# Temp docs from investigation
+docs/palette-issue-root-cause.md
+docs/sprite-rendering-investigation.md
+docs/sprite-rendering-verification-plan.md
+docs/verification-step1-2-results.md
+
 # Logs
 *.log
 

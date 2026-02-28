@@ -1,0 +1,23 @@
+[Info]
+Name="Kyo Kusanagi"
+DisplayName="Kyo Kusanagi"
+VersionDate=12,12,2001
+MugenVersion=11,29,2000
+Author="Suzuki Inoue"
+Pal.Defaults=1,2,3,4,5,6
+
+[Files]
+cmd=kyo.cmd
+cns=kyo.cns
+st=kyo.cns
+stcommon=common1.cns
+sprite=kyo.sff
+anim=kyo.air
+sound=kyo.snd
+pal1=kyo01.act
+pal2=kyo02.act
+pal3=kyo03.act
+pal4=kyo04.act
+pal5=kyo05.act
+pal6=kyo06.act
+
