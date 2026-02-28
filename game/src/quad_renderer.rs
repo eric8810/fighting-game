@@ -445,11 +445,15 @@ impl QuadRenderer {
             screen_size: [screen_width, screen_height, 0.0, 0.0],
         };
         queue.write_buffer(&self.uniform_buffer, 0, bytemuck::bytes_of(&uniforms));
-        queue.write_buffer(
-            &self.instance_buffer,
-            0,
-            bytemuck::cast_slice(&instances[..count]),
-        );
+
+        // Create a per-draw instance buffer to avoid overwriting shared buffer
+        // before the GPU has consumed the previous draw's data.
+        let instance_data = bytemuck::cast_slice(&instances[..count]);
+        let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("quad_instances_tmp"),
+            contents: instance_data,
+            usage: wgpu::BufferUsages::VERTEX,
+        });
 
         let load_op = if clear_screen {
             wgpu::LoadOp::Clear(wgpu::Color {
@@ -508,7 +512,7 @@ impl QuadRenderer {
         }
 
         pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-        pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
+        pass.set_vertex_buffer(1, instance_buffer.slice(..));
         pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
         pass.draw_indexed(0..6, 0, 0..count as u32);
     }

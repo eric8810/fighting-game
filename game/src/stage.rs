@@ -181,6 +181,7 @@ impl Stage {
             // Tile the layer across the visible area.
             // For simplicity, draw one wide rect that covers the screen.
             let layer_w = screen_w + self.camera_limits.max_x.abs() + 200.0;
+
             instances.push(crate::quad_renderer::QuadInstance {
                 rect: [offset_x - 100.0, y, layer_w, layer.height],
                 color: layer.color,

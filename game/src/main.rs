@@ -244,37 +244,52 @@ impl ApplicationHandler for App {
         self.text_renderer = Some(tr);
         log::info!("Text renderer created");
 
-        // Load KFM (Kung Fu Man) MUGEN character
-        log::info!("Loading KFM character...");
-        let kfm_base = "./assets/mugen/kfm";
-        match SffV1::load(format!("{}/kfm.sff", kfm_base)) {
+        // Load Kyo Kusanagi MUGEN character
+        log::info!("Loading Kyo Kusanagi character...");
+        let kyo_base = "./assets/mugen/kyo";
+        match SffV1::load(format!("{}/kyo.sff", kyo_base)) {
             Ok(sff) => {
-                log::info!("KFM SFF loaded: {} sprites", sff.sprite_count());
+                log::info!("Kyo SFF loaded: {} sprites", sff.sprite_count());
                 let atlas = SpriteAtlas::build(&sff);
-                log::info!("KFM atlas built: {}x{}", atlas.width, atlas.height);
+                log::info!("Kyo atlas built: {}x{}", atlas.width, atlas.height);
 
                 // Upload atlas as GPU texture (raw RGBA bytes)
                 match Texture::from_rgba(
                     &ctx.device, &ctx.queue,
-                    &atlas.rgba, atlas.width, atlas.height, "kfm_atlas",
+                    &atlas.rgba, atlas.width, atlas.height, "kyo_atlas",
                 ) {
                     Ok(texture) => {
-                        log::info!("KFM atlas uploaded to GPU");
+                        log::info!("Kyo atlas uploaded to GPU");
+
+                        // Export atlas for debugging
+                        let debug_path = "./debug_kyo_atlas.png";
+                        if let Err(e) = image::save_buffer(
+                            debug_path,
+                            &atlas.rgba,
+                            atlas.width,
+                            atlas.height,
+                            image::ColorType::Rgba8,
+                        ) {
+                            log::error!("Failed to save debug atlas: {}", e);
+                        } else {
+                            log::info!("Debug atlas saved to: {}", debug_path);
+                        }
+
                         self.fighter_texture = Some(texture);
                         self.kfm_atlas = Some(atlas);
                         self.use_sprites = true;
                     }
-                    Err(e) => log::warn!("Failed to upload KFM atlas: {}", e),
+                    Err(e) => log::warn!("Failed to upload Kyo atlas: {}", e),
                 }
             }
-            Err(e) => log::warn!("Failed to load kfm.sff: {}", e),
+            Err(e) => log::warn!("Failed to load kyo.sff: {}", e),
         }
-        match Air::load(format!("{}/kfm.air", kfm_base)) {
+        match Air::load(format!("{}/kyo.air", kyo_base)) {
             Ok(air) => {
-                log::info!("KFM AIR loaded: {} actions", air.action_count());
+                log::info!("Kyo AIR loaded: {} actions", air.action_count());
                 self.kfm_air = Some(air);
             }
-            Err(e) => log::warn!("Failed to load kfm.air: {}", e),
+            Err(e) => log::warn!("Failed to load kyo.air: {}", e),
         }
         log::info!("use_sprites = {}", self.use_sprites);
 
@@ -782,6 +797,7 @@ impl App {
                 let action = air.get_action(action_num)
                     .or_else(|| air.get_action(0))?;
                 if action.frames.is_empty() {
+                    log::error!("❌ Action {} has no frames!", action_num);
                     return None;
                 }
                 // Advance through frames using per-frame duration
@@ -801,17 +817,17 @@ impl App {
                 let f = &action.frames[frame_idx];
                 Some((f.group, f.image))
             });
-
-            // Look up sprite info and UV from atlas
+            const SPRITE_SCALE: f32 = 3.0; // Scale sprites 3x
             let (render_w, render_h, screen_x, screen_y, uv) =
                 if let (Some(atlas), Some((g, i))) = (self.kfm_atlas.as_ref(), sprite_key) {
                     if let (Some(info), Some(uv)) = (atlas.get_info(g, i), atlas.get_uv(g, i)) {
                         let w = info.width as f32;
                         let h = info.height as f32;
-                        // axis_y is distance from top of sprite to ground level
-                        let sx = x - info.axis_x as f32 - camera_x;
-                        let sy = ground_screen_y - y - info.axis_y as f32;
-                        (w, h, sx, sy, uv)
+                        let sx = x - info.axis_x as f32 * SPRITE_SCALE - camera_x;
+                        let sy = ground_screen_y - y - info.axis_y as f32 * SPRITE_SCALE;
+                        let scaled_w = w * SPRITE_SCALE;
+                        let scaled_h = h * SPRITE_SCALE;
+                        (scaled_w, scaled_h, sx, sy, uv)
                     } else {
                         (FIGHTER_W, FIGHTER_H, x - FIGHTER_W / 2.0 - camera_x, ground_screen_y - y - FIGHTER_H, [0.0, 0.0, 1.0, 1.0])
                     }
@@ -826,10 +842,9 @@ impl App {
                 [uv[0] + uv[2], uv[1], -uv[2], uv[3]]
             };
 
-            fighter_instances.push(QuadInstance {
-                rect: [screen_x, screen_y, render_w, render_h],
+            fighter_instances.push(QuadInstance {                rect: [screen_x, screen_y, render_w, render_h],
                 color: if self.use_sprites {
-                    [1.0, 1.0, 1.0, 1.0]
+                    [1.0, 1.0, 1.0, 1.0]  // White tint for textured sprites
                 } else {
                     color.0
                 },
@@ -874,7 +889,7 @@ impl App {
             ctx.size.width as f32,
             ctx.size.height as f32,
             &bg_instances,
-            None, // No texture for background/UI
+            None,
         );
 
         // Pass 2: Fighters (with texture, no screen clear).

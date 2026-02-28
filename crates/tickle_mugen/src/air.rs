@@ -87,8 +87,8 @@ impl Air {
                 continue;
             }
 
-            // Begin Action
-            if line.starts_with("[Begin Action ") {
+            // Begin Action (case-insensitive)
+            if line.to_lowercase().starts_with("[begin action ") {
                 // Save previous action
                 if let Some(mut action) = current_action.take() {
                     action.clsn2_default = current_clsn2_default.clone();
@@ -96,10 +96,8 @@ impl Air {
                     actions.insert(action.number, action);
                 }
 
-                // Parse action number
-                let num_str = line.trim_start_matches("[Begin Action ")
-                    .trim_end_matches(']')
-                    .trim();
+                // Parse action number (handle both "Action" and "action")
+                let num_str = line[14..].trim_end_matches(']').trim();
                 let number = num_str.parse::<u32>()
                     .map_err(|_| SffError::Io(std::io::Error::new(
                         std::io::ErrorKind::InvalidData,
@@ -200,6 +198,8 @@ impl Air {
         }
 
         log::info!("Loaded {} actions from AIR", actions.len());
+        log::info!("Available actions: {:?}",
+            actions.keys().copied().collect::<Vec<_>>().iter().copied().collect::<std::collections::BTreeSet<_>>());
         Ok(Self { actions })
     }
 
