@@ -24,52 +24,106 @@ MUGEN support is a **content pipeline tool**, not a compatibility target. The go
 
 ---
 
-## Needs Design First (blockers)
+## Design Decisions (finalized)
 
-These architectural questions must be answered before implementation:
+These architectural decisions have been finalized and will guide Phase 2-3 implementation:
 
 ### 1. State Machine Architecture
 
-**Problem**: tickle_core has its own `StateType` enum. MUGEN uses integer state numbers. Two options:
+**Decision**: Option A - Replace `StateType` enum with integer state numbers.
 
-- **Option A - Replace**: Remove `StateType` enum, drive everything from CNS state numbers. Clean but requires rewriting tickle_core systems.
-- **Option B - Bridge**: Keep `StateType` enum, map CNS states onto it. Preserves existing systems but limits MUGEN compatibility.
+**Rationale**:
+- Current `StateType` enum only has 9 values (Idle, Walk, Crouch, Jump, Attack, Block, Hitstun, Knockdown, Special), insufficient for real character logic
+- CNS state numbers are more expressive (Kyo has 233 statedefs) and already encode the same information
+- Type safety can be maintained through constants and helper functions:
+  ```rust
+  const STATE_STAND: i32 = 0;
+  const STATE_WALK_FWD: i32 = 20;
+  const STATE_CROUCH: i32 = 10;
+  // etc.
+  ```
+- Cleaner integration with MUGEN's state transition system
 
-**Recommendation**: Option A. The existing `StateType` enum is too limited for real character logic anyway. CNS state numbers are more expressive and already encode the same information.
+**Implementation**: Replace `StateType` field in components with `state_num: i32` and `state_frame: i32`.
 
 ### 2. Trigger Expression Evaluator
 
-**Problem**: CNS triggers are a full expression language:
-```
-ifelse(var(8)=0, const(velocity.jump.neu.x), ifelse(var(8)>0, const(velocity.jump.fwd.x), const(velocity.jump.back.x)))
-```
+**Decision**: Interpreted AST approach.
 
-- **Interpreted AST**: Parse to AST at load time, evaluate each tick. Simpler to implement, slower.
-- **Compiled closures**: Compile to Rust closures at load time. Faster, harder to implement.
+**Rationale**:
+- Performance is not a bottleneck: typical KOF character has ~200 statedefs × ~5 controllers = ~1000 trigger evaluations per frame
+- Each evaluation takes <1 microsecond, well within 16.67ms frame budget (60 FPS)
+- Simpler to implement and debug
+- Easier to extend with new trigger variables and operators
+- No need for complex compilation infrastructure
 
-**Recommendation**: Interpreted AST. Performance is not a concern for the subset we support (KOF characters have ~200 statedefs, each with ~5 controllers = ~1000 evaluations per tick, trivial at 60 FPS).
+**Implementation**: Parse trigger expressions to AST at load time, evaluate during state controller execution.
 
 ### 3. common1.cns
 
-MUGEN's standard states (0=stand, 20=walk, 40=jump, 5000=hitstun) are defined in `common1.cns`, which is part of the MUGEN engine, not character packages.
+**Decision**: Reimplement standard states in Rust as built-in states.
 
-**Options**:
-- Bundle a compatible `common1.cns` (legal gray area)
-- Reimplement standard states in Rust, expose as built-in states
+**Rationale**:
+- Avoids legal gray area of bundling MUGEN's common1.cns
+- Only need ~20 standard states for KOF-style characters:
+  - 0 = Stand
+  - 10 = Crouch Start
+  - 11 = Crouching
+  - 12 = Crouch End
+  - 20 = Walk Forward
+  - 21 = Walk Back
+  - 40 = Jump Start
+  - 41 = Jump Neutral
+  - 42 = Jump Forward
+  - 43 = Jump Back
+  - 45 = Air Jump Start
+  - 46 = Air Jump
+  - 50 = Guard Start
+  - 51 = Guard Mid
+  - 52 = Guard End
+  - 100 = Run Forward
+  - 105 = Run Back
+  - 5000 = Hitstun (standing)
+  - 5010 = Hitstun (crouching)
+  - 5020 = Hitstun (air)
+  - 5100 = Knockdown
+- Full control over physics parameters and integration with tickle_core systems
 
-**Recommendation**: Reimplement in Rust. We only need the ~20 standard states relevant to KOF-style characters. This also gives us full control over physics parameters.
+**Implementation**: Create `crates/tickle_mugen/src/common_states.rs` with Rust implementations of standard states.
 
 ### 4. Rollback Compatibility
 
-MUGEN state that must be serialized for rollback:
-- State number + state frame counter
-- var(0..59) integer variables
-- fvar(0..39) float variables (may skip for now)
-- Velocity, position, animation frame
-- Hit flags (MoveHit, MoveContact, MoveGuarded)
-- Control flag
+**Decision**: Extend `FighterSnapshot` to include MUGEN-specific state.
 
-The existing `FighterSnapshot` in tickle_network must be extended.
+**Required additions**:
+```rust
+pub struct FighterSnapshot {
+    // Existing fields
+    pub entity: Entity,
+    pub position: LogicVec2,
+    pub velocity: LogicVec2,
+    pub health: i32,
+    pub power_gauge: i32,
+    pub facing: Facing,
+
+    // New MUGEN fields
+    pub state_num: i32,           // Current CNS state number
+    pub state_frame: i32,         // Ticks since state entry
+    pub vars: [i32; 60],          // var(0..59) integer variables
+    pub ctrl: bool,               // Control flag
+    pub anim_num: i32,            // Current animation number
+    pub anim_elem: i32,           // Current animation element
+    pub anim_time: i32,           // Ticks in current element
+    pub move_hit: bool,           // MoveHit flag
+    pub move_contact: bool,       // MoveContact flag
+    pub move_guarded: bool,       // MoveGuarded flag
+    pub prev_state_num: i32,      // Previous state number
+}
+```
+
+**Note**: Float variables (fvar) can be skipped initially as KOF characters rarely use them.
+
+**Implementation**: Update `tickle_network/src/snapshot.rs` and ensure all MUGEN state is properly saved/restored during rollback.
 
 ---
 
@@ -109,7 +163,7 @@ The existing `FighterSnapshot` in tickle_network must be extended.
 
 **Complexity**: Medium.
 
-**Prerequisite**: Design decisions 1, 2, 3 above must be resolved.
+**Prerequisite**: Design decisions finalized (see above).
 
 ### Controllers to implement (KOF-relevant subset)
 
