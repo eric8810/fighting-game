@@ -1,5 +1,6 @@
-use crate::components::{FighterState, Health, PowerGauge, StateType, Velocity};
+use crate::components::{FighterState, Health, PowerGauge, Velocity};
 use crate::math::LogicVec2;
+use crate::state_constants::*;
 use crate::systems::collision::HitEvent;
 
 /// Combo scaling: damage multiplier decreases with each hit in a combo.
@@ -30,7 +31,7 @@ pub struct CombatEntity {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct HitResult {
     pub damage_dealt: i32,
-    pub hitstun_applied: u32,
+    pub hitstun_applied: i32,
     pub knockback_applied: LogicVec2,
     pub attacker_gauge_gain: i32,
     pub defender_gauge_gain: i32,
@@ -52,7 +53,7 @@ pub fn hit_resolution_system(
     defender.health.take_damage(scaled_damage);
 
     // Apply hitstun
-    defender.state.change_state(StateType::Hitstun);
+    defender.state.change_state(STATE_HIT_STAND_LIGHT);
 
     // Apply knockback
     defender.velocity.vel = event.hitbox.knockback;
@@ -75,7 +76,7 @@ pub fn hit_resolution_system(
 
 /// Applies blockstun to a defending entity.
 pub fn apply_blockstun(defender: &mut CombatEntity) {
-    defender.state.change_state(StateType::Blockstun);
+    defender.state.change_state(STATE_GUARD_STAND);
 }
 
 /// Updates power gauge by a given amount (can be used for special moves, etc.).
@@ -89,7 +90,7 @@ mod tests {
     use crate::components::{HitType, Hitbox};
     use crate::math::LogicVec2;
 
-    fn make_hit_event(damage: i32, hitstun: u32, knockback_x: i32) -> HitEvent {
+    fn make_hit_event(damage: i32, hitstun: i32, knockback_x: i32) -> HitEvent {
         HitEvent {
             attacker: 0,
             defender: 1,
@@ -138,7 +139,7 @@ mod tests {
 
         hit_resolution_system(&event, &mut attacker_gauge, &mut defender);
 
-        assert_eq!(defender.state.current_state, StateType::Hitstun);
+        assert_eq!(defender.state.state_num, STATE_HIT_STAND_LIGHT);
     }
 
     #[test]
@@ -192,7 +193,7 @@ mod tests {
     fn test_blockstun() {
         let mut defender = make_defender(10000, 1);
         apply_blockstun(&mut defender);
-        assert_eq!(defender.state.current_state, StateType::Blockstun);
+        assert_eq!(defender.state.state_num, STATE_GUARD_STAND);
     }
 
     #[test]

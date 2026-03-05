@@ -109,38 +109,26 @@ impl Default for PowerGauge {
     }
 }
 
-/// Fighter state type
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum StateType {
-    Idle,
-    WalkForward,
-    WalkBackward,
-    Run,
-    Crouch,
-    Jump,
-    Attack(u32), // Attack ID
-    Hitstun,
-    Blockstun,
-    Knockdown,
-}
-
-/// Fighter state component
+/// Fighter state component (MUGEN-compatible)
+/// Uses integer state numbers instead of enum for flexibility
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FighterState {
-    pub current_state: StateType,
-    pub state_frame: u32,
+    /// Current state number (MUGEN-compatible)
+    pub state_num: i32,
+    /// Ticks since entering this state
+    pub state_frame: i32,
 }
 
 impl FighterState {
     pub fn new() -> Self {
         Self {
-            current_state: StateType::Idle,
+            state_num: 0, // STATE_STAND
             state_frame: 0,
         }
     }
 
-    pub fn change_state(&mut self, new_state: StateType) {
-        self.current_state = new_state;
+    pub fn change_state(&mut self, new_state: i32) {
+        self.state_num = new_state;
         self.state_frame = 0;
     }
 
@@ -169,8 +157,8 @@ pub enum HitType {
 pub struct Hitbox {
     pub rect: LogicRect,
     pub damage: i32,
-    pub hitstun: u32,
-    pub blockstun: u32,
+    pub hitstun: i32,
+    pub blockstun: i32,
     pub knockback: LogicVec2,
     pub hit_type: HitType,
 }
@@ -312,14 +300,14 @@ mod tests {
     #[test]
     fn test_fighter_state() {
         let mut state = FighterState::new();
-        assert_eq!(state.current_state, StateType::Idle);
+        assert_eq!(state.state_num, 0); // STATE_STAND
         assert_eq!(state.state_frame, 0);
 
         state.advance_frame();
         assert_eq!(state.state_frame, 1);
 
-        state.change_state(StateType::Jump);
-        assert_eq!(state.current_state, StateType::Jump);
+        state.change_state(41); // STATE_JUMP_UP
+        assert_eq!(state.state_num, 41);
         assert_eq!(state.state_frame, 0);
     }
 

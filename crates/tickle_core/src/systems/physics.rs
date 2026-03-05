@@ -1,4 +1,5 @@
-use crate::components::{FighterState, Position, StateType, Velocity};
+use crate::components::{FighterState, Position, Velocity};
+use crate::state_constants::*;
 
 #[allow(unused_imports)]
 use crate::math::LogicVec2;
@@ -38,9 +39,9 @@ pub fn ground_detection_system(entities: &mut [(Position, Velocity, FighterState
         if pos.pos.y < GROUND_Y {
             pos.pos.y = GROUND_Y;
             vel.vel.y = 0;
-            // Transition from Jump to Idle on landing
-            if state.current_state == StateType::Jump {
-                state.change_state(StateType::Idle);
+            // Transition from Jump to Stand on landing
+            if is_aerial_state(state.state_num) {
+                state.change_state(STATE_STAND);
             }
             landed.push(i);
         }
@@ -117,21 +118,21 @@ mod tests {
     #[test]
     fn test_ground_detection_snaps_to_ground() {
         let mut entities = [(pos(0, -100), vel(0, -200), FighterState::new())];
-        entities[0].2.change_state(StateType::Jump);
+        entities[0].2.change_state(STATE_JUMP_UP);
         let landed = ground_detection_system(&mut entities);
         assert_eq!(entities[0].0.pos.y, GROUND_Y);
         assert_eq!(entities[0].1.vel.y, 0);
-        assert_eq!(entities[0].2.current_state, StateType::Idle);
+        assert_eq!(entities[0].2.state_num, STATE_STAND);
         assert_eq!(landed, vec![0]);
     }
 
     #[test]
     fn test_ground_detection_no_landing() {
         let mut entities = [(pos(0, 5000), vel(0, -80), FighterState::new())];
-        entities[0].2.change_state(StateType::Jump);
+        entities[0].2.change_state(STATE_JUMP_UP);
         let landed = ground_detection_system(&mut entities);
         assert!(landed.is_empty());
-        assert_eq!(entities[0].2.current_state, StateType::Jump);
+        assert_eq!(entities[0].2.state_num, STATE_JUMP_UP);
     }
 
     #[test]

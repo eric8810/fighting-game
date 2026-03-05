@@ -6,6 +6,7 @@ use std::time::Instant;
 
 use tickle_core::components::*;
 use tickle_core::math::{LogicRect, LogicVec2};
+use tickle_core::state_constants::*;
 use tickle_core::systems::animation::{animation_system, SpriteAnimation, SpriteFrame};
 use tickle_core::systems::collision::{collision_system, CollisionEntity};
 use tickle_core::systems::combat::{combo_scaled_damage, hit_resolution_system, CombatEntity};
@@ -134,11 +135,11 @@ fn bench_physics_systems() {
         },
         FighterState::new(),
     )];
-    gd_entities[0].2.change_state(StateType::Jump);
+    gd_entities[0].2.change_state(STATE_JUMP_UP);
     bench("ground_detection (1 entity)", ITERATIONS, || {
         gd_entities[0].0.pos.y = -100;
         gd_entities[0].1.vel.y = -200;
-        gd_entities[0].2.change_state(StateType::Jump);
+        gd_entities[0].2.change_state(STATE_JUMP_UP);
         ground_detection_system(&mut gd_entities);
     });
 }

@@ -4,6 +4,96 @@ use tickle_core::{
     StateMachine, Velocity,
 };
 
+/// MUGEN-specific fighter state required for rollback determinism.
+///
+/// vars is stored as two [i32; 30] halves because the serde impl only supports
+/// fixed-size arrays up to 32 elements. vars_lo covers var(0..29) and
+/// vars_hi covers var(30..59).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MugenState {
+    /// Integer variables var(0..29)
+    pub vars_lo: [i32; 30],
+    /// Integer variables var(30..59)
+    pub vars_hi: [i32; 30],
+    /// Control flag - whether player input affects state
+    pub ctrl: bool,
+    /// Current animation number
+    pub anim_num: i32,
+    /// Current animation element (1-based frame index)
+    pub anim_elem: i32,
+    /// Ticks into current animation element
+    pub anim_time: i32,
+    /// Whether current attack connected
+    pub move_hit: bool,
+    /// Whether current attack made contact (hit or guarded)
+    pub move_contact: bool,
+    /// Whether current attack was guarded
+    pub move_guarded: bool,
+    /// Previous state number
+    pub prev_state_num: i32,
+    /// Remaining hitstun frames
+    pub hitstun_remaining: i32,
+    /// Remaining blockstun frames
+    pub blockstun_remaining: i32,
+    /// Remaining ticks for active NotHitBy window (0 = not active)
+    pub not_hit_by_ticks: i32,
+    /// NotHitBy attribute filter string (empty = not active)
+    pub not_hit_by_attr: String,
+    /// Remaining ticks for active HitBy window (0 = not active)
+    pub hit_by_ticks: i32,
+    /// HitBy attribute filter string (empty = not active)
+    pub hit_by_attr: String,
+}
+
+impl MugenState {
+    /// Read a MUGEN integer variable by index (0..59).
+    ///
+    /// Returns 0 for out-of-range indices.
+    pub fn get_var(&self, index: usize) -> i32 {
+        if index < 30 {
+            self.vars_lo[index]
+        } else if index < 60 {
+            self.vars_hi[index - 30]
+        } else {
+            0
+        }
+    }
+
+    /// Write a MUGEN integer variable by index (0..59).
+    ///
+    /// Out-of-range indices are silently ignored.
+    pub fn set_var(&mut self, index: usize, value: i32) {
+        if index < 30 {
+            self.vars_lo[index] = value;
+        } else if index < 60 {
+            self.vars_hi[index - 30] = value;
+        }
+    }
+}
+
+impl Default for MugenState {
+    fn default() -> Self {
+        Self {
+            vars_lo: [0i32; 30],
+            vars_hi: [0i32; 30],
+            ctrl: true,
+            anim_num: 0,
+            anim_elem: 0,
+            anim_time: 0,
+            move_hit: false,
+            move_contact: false,
+            move_guarded: false,
+            prev_state_num: 0,
+            hitstun_remaining: 0,
+            blockstun_remaining: 0,
+            not_hit_by_ticks: 0,
+            not_hit_by_attr: String::new(),
+            hit_by_ticks: 0,
+            hit_by_attr: String::new(),
+        }
+    }
+}
+
 /// Complete snapshot of a single fighter's state.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FighterSnapshot {
@@ -17,6 +107,8 @@ pub struct FighterSnapshot {
     pub input_buffer: InputBuffer,
     pub hitbox_manager: HitboxManager,
     pub combo_count: u32,
+    /// MUGEN-specific state for rollback compatibility
+    pub mugen_state: MugenState,
 }
 
 /// Game-level state that isn't per-fighter.
@@ -49,6 +141,7 @@ pub fn snapshot_fighter(
     input_buffer: &InputBuffer,
     hitbox_manager: &HitboxManager,
     combo_count: u32,
+    mugen_state: MugenState,
 ) -> FighterSnapshot {
     FighterSnapshot {
         position: *position,
@@ -61,6 +154,7 @@ pub fn snapshot_fighter(
         input_buffer: input_buffer.clone(),
         hitbox_manager: hitbox_manager.clone(),
         combo_count,
+        mugen_state,
     }
 }
 
@@ -79,6 +173,7 @@ pub fn restore_fighter(
     InputBuffer,
     HitboxManager,
     u32,
+    MugenState,
 ) {
     (
         snapshot.position,
@@ -91,6 +186,7 @@ pub fn restore_fighter(
         snapshot.input_buffer.clone(),
         snapshot.hitbox_manager.clone(),
         snapshot.combo_count,
+        snapshot.mugen_state.clone(),
     )
 }
 
@@ -119,6 +215,7 @@ mod tests {
                 rect: LogicRect::new(-1500, -8000, 3000, 8000),
             }),
             combo_count: 0,
+            mugen_state: MugenState::default(),
         }
     }
 
@@ -163,8 +260,9 @@ mod tests {
 
         let snap = snapshot_fighter(
             &pos, &prev, &vel, &facing, &health, &gauge, &sm, &ib, &hm, 0,
+            MugenState::default(),
         );
-        let (rp, rprev, rv, rf, rh, rg, rsm, rib, rhm, rc) = restore_fighter(&snap);
+        let (rp, rprev, rv, rf, rh, rg, rsm, rib, rhm, rc, rms) = restore_fighter(&snap);
 
         assert_eq!(rp, pos);
         assert_eq!(rprev, prev);
@@ -177,6 +275,7 @@ mod tests {
         assert_eq!(rib, ib);
         assert_eq!(rhm, hm);
         assert_eq!(rc, 0);
+        assert_eq!(rms, MugenState::default());
     }
 
     #[test]
@@ -187,5 +286,40 @@ mod tests {
 
         snap2.fighters[0].health.take_damage(100);
         assert_ne!(snap1, snap2);
+    }
+
+    #[test]
+    fn test_mugen_state_default() {
+        let ms = MugenState::default();
+        assert_eq!(ms.vars_lo, [0i32; 30]);
+        assert_eq!(ms.vars_hi, [0i32; 30]);
+        assert!(ms.ctrl);
+        assert!(!ms.move_hit);
+    }
+
+    #[test]
+    fn test_mugen_state_in_snapshot() {
+        let mut snap = default_fighter_snapshot();
+        snap.mugen_state.set_var(0, 42);
+        snap.mugen_state.ctrl = false;
+
+        let cloned = snap.clone();
+        assert_eq!(cloned.mugen_state.get_var(0), 42);
+        assert!(!cloned.mugen_state.ctrl);
+    }
+
+    #[test]
+    fn test_mugen_state_var_accessors() {
+        let mut ms = MugenState::default();
+        ms.set_var(0, 10);
+        ms.set_var(29, 20);
+        ms.set_var(30, 30);
+        ms.set_var(59, 40);
+        assert_eq!(ms.get_var(0), 10);
+        assert_eq!(ms.get_var(29), 20);
+        assert_eq!(ms.get_var(30), 30);
+        assert_eq!(ms.get_var(59), 40);
+        // Out-of-range returns 0
+        assert_eq!(ms.get_var(60), 0);
     }
 }

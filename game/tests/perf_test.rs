@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 use hecs::World;
 use tickle_core::{
     Direction, Facing, Health, InputState, LogicVec2, Position, PreviousPosition, StateMachine,
-    StateType, Velocity, BUTTON_A,
+    Velocity, BUTTON_A, STATE_JUMP_UP, STATE_WALK_FORWARD, STATE_WALK_BACKWARD,
 };
 
 // Constants matching game/src/main.rs
@@ -71,7 +71,7 @@ fn logic_update(world: &mut World, p1_input: &InputState, p2_input: &InputState)
         if pos.pos.y > GROUND_Y || vel.vel.y > 0 {
             vel.vel.y += GRAVITY;
         }
-        if pos.pos.y <= GROUND_Y && sm.current_state() != StateType::Jump {
+        if pos.pos.y <= GROUND_Y && sm.current_state() != STATE_JUMP_UP {
             if vel.vel.x > 0 {
                 vel.vel.x = (vel.vel.x - FRICTION).max(0);
             } else if vel.vel.x < 0 {
@@ -91,12 +91,12 @@ fn logic_update(world: &mut World, p1_input: &InputState, p2_input: &InputState)
 }
 
 fn apply_input(vel: &mut Velocity, sm: &mut StateMachine, input: &InputState) {
-    let was_jumping = sm.current_state() == StateType::Jump;
+    let was_jumping = sm.current_state() == STATE_JUMP_UP;
     sm.try_transition(input);
     match sm.current_state() {
-        StateType::WalkForward => vel.vel.x = MOVE_SPEED,
-        StateType::WalkBackward => vel.vel.x = -MOVE_SPEED,
-        StateType::Jump if !was_jumping => {
+        STATE_WALK_FORWARD => vel.vel.x = MOVE_SPEED,
+        STATE_WALK_BACKWARD => vel.vel.x = -MOVE_SPEED,
+        STATE_JUMP_UP if !was_jumping => {
             vel.vel.y = JUMP_VEL;
         }
         _ => {}

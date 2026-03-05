@@ -6,9 +6,10 @@ use tickle_core::systems::physics::{DEFAULT_FRICTION, DEFAULT_GRAVITY, GROUND_Y}
 /// networking.
 use tickle_core::{
     Direction, Facing, Health, HitboxManager, InputBuffer, InputState, LogicRect, LogicVec2,
-    Position, PowerGauge, PreviousPosition, Pushbox, StateMachine, StateType, Velocity, BUTTON_A,
+    Position, PowerGauge, PreviousPosition, Pushbox, StateMachine, Velocity, BUTTON_A,
+    STATE_STAND, STATE_WALK_FORWARD, STATE_WALK_BACKWARD, STATE_JUMP_UP,
 };
-use tickle_network::snapshot::{FighterSnapshot, GameManagerSnapshot, GameSnapshot};
+use tickle_network::snapshot::{FighterSnapshot, GameManagerSnapshot, GameSnapshot, MugenState};
 use tickle_network::DeterministicRng;
 
 // ---------------------------------------------------------------------------
@@ -35,10 +36,64 @@ fn default_fighter(x: i32, facing: i32) -> FighterSnapshot {
             rect: LogicRect::new(-1500, -8000, 3000, 8000),
         }),
         combo_count: 0,
+        mugen_state: MugenState::default(),
     }
 }
 
-// DETERMINISM_TEST_PLACEHOLDER
+/// Simulate a single fighter frame with MUGEN state mutations.
+/// This extends the regular physics simulation with deterministic changes
+/// to MugenState fields (vars, ctrl, anim, move flags) to verify that
+/// snapshot save/restore covers all MUGEN-specific state.
+fn simulate_mugen_fighter_frame(
+    fighter: &mut FighterSnapshot,
+    input: InputState,
+    rng: &mut DeterministicRng,
+    frame: u32,
+) {
+    // Regular physics simulation
+    simulate_fighter_frame(fighter, input, rng);
+
+    let ms = &mut fighter.mugen_state;
+
+    // Deterministic MUGEN state mutations based on frame number and RNG:
+
+    // Cycle state_num through common states every 10 frames
+    let state_cycle = [STATE_STAND, STATE_WALK_FORWARD, STATE_WALK_BACKWARD, STATE_JUMP_UP];
+    let desired_state = state_cycle[(frame as usize / 10) % state_cycle.len()];
+    if fighter.state_machine.current_state() != desired_state {
+        // Store prev_state_num like the real controller does
+        ms.prev_state_num = fighter.state_machine.current_state();
+    }
+
+    // Update vars deterministically: var(0) counts frames, var(1) accumulates RNG
+    ms.set_var(0, frame as i32);
+    let rng_val = rng.range(0, 1000);
+    let prev_var1 = ms.get_var(1);
+    ms.set_var(1, prev_var1.wrapping_add(rng_val));
+
+    // var(10) and var(40) test both halves of the split storage (lo/hi)
+    ms.set_var(10, (frame as i32) * 3);
+    ms.set_var(40, (frame as i32) * 7);
+
+    // Toggle ctrl every 15 frames
+    ms.ctrl = (frame / 15).is_multiple_of(2);
+
+    // Advance animation state deterministically
+    ms.anim_time += 1;
+    if ms.anim_time >= 5 {
+        ms.anim_time = 0;
+        ms.anim_elem += 1;
+        if ms.anim_elem > 8 {
+            ms.anim_elem = 1;
+            ms.anim_num += 1;
+        }
+    }
+
+    // Toggle move flags at specific frames
+    ms.move_hit = frame % 20 < 5;
+    ms.move_contact = frame % 20 < 8;
+    ms.move_guarded = frame % 30 < 3;
+}
 
 fn default_game_state() -> GameSnapshot {
     GameSnapshot {
@@ -74,13 +129,13 @@ fn simulate_fighter_frame(
 
     // Apply movement based on state
     match fighter.state_machine.current_state() {
-        StateType::WalkForward => {
+        STATE_WALK_FORWARD => {
             fighter.velocity.vel.x = 400 * fighter.facing.dir;
         }
-        StateType::WalkBackward => {
+        STATE_WALK_BACKWARD => {
             fighter.velocity.vel.x = -300 * fighter.facing.dir;
         }
-        StateType::Jump => {
+        STATE_JUMP_UP => {
             if fighter.state_machine.state_frame() == 0 {
                 fighter.velocity.vel.y = 1800;
             }
@@ -104,7 +159,7 @@ fn simulate_fighter_frame(
     if fighter.position.pos.y < GROUND_Y {
         fighter.position.pos.y = GROUND_Y;
         fighter.velocity.vel.y = 0;
-        if fighter.state_machine.current_state() == StateType::Jump {
+        if fighter.state_machine.current_state() == STATE_JUMP_UP {
             fighter.state_machine.land();
         }
     }
@@ -122,7 +177,20 @@ fn simulate_fighter_frame(
     fighter.state_machine.update();
 }
 
-// DETERMINISM_TESTS_PLACEHOLDER
+/// Simulate a full game frame with MUGEN state mutations for both fighters.
+fn simulate_mugen_frame(state: &mut GameSnapshot, inputs: [InputState; 2]) {
+    let mut rng = DeterministicRng::new(state.manager.rng_state);
+    let frame = state.manager.frame_number;
+
+    simulate_mugen_fighter_frame(&mut state.fighters[0], inputs[0], &mut rng, frame);
+    simulate_mugen_fighter_frame(&mut state.fighters[1], inputs[1], &mut rng, frame);
+
+    state.manager.rng_state = rng.state();
+    state.manager.frame_number += 1;
+    if state.manager.round_timer > 0 {
+        state.manager.round_timer -= 1;
+    }
+}
 
 fn simulate_frame(state: &mut GameSnapshot, inputs: [InputState; 2]) {
     let mut rng = DeterministicRng::new(state.manager.rng_state);
@@ -266,4 +334,89 @@ fn determinism_idle_frames_stable() {
     assert_eq!(state.fighters[1].position.pos.y, 0);
     assert_eq!(state.fighters[0].velocity.vel, LogicVec2::ZERO);
     assert_eq!(state.fighters[1].velocity.vel, LogicVec2::ZERO);
+}
+
+#[test]
+fn test_mugen_rollback_determinism() {
+    let inputs = generate_input_sequence(777, 60);
+
+    // --- Full run: simulate 60 frames with MUGEN state mutations ---
+    let mut full_run = default_game_state();
+    // Seed MugenState with non-default values so we verify they survive rollback
+    full_run.fighters[0].mugen_state.set_var(5, 999);
+    full_run.fighters[0].mugen_state.ctrl = false;
+    full_run.fighters[0].mugen_state.anim_num = 200;
+    full_run.fighters[1].mugen_state.set_var(30, -42);
+    full_run.fighters[1].mugen_state.move_hit = true;
+
+    for frame_inputs in &inputs {
+        simulate_mugen_frame(&mut full_run, *frame_inputs);
+    }
+
+    // --- Snapshot run: simulate 30 frames, save, continue 30 more ---
+    let mut snapshot_run = default_game_state();
+    snapshot_run.fighters[0].mugen_state.set_var(5, 999);
+    snapshot_run.fighters[0].mugen_state.ctrl = false;
+    snapshot_run.fighters[0].mugen_state.anim_num = 200;
+    snapshot_run.fighters[1].mugen_state.set_var(30, -42);
+    snapshot_run.fighters[1].mugen_state.move_hit = true;
+
+    for frame_inputs in &inputs[..30] {
+        simulate_mugen_frame(&mut snapshot_run, *frame_inputs);
+    }
+
+    // Save snapshot at frame 30
+    let snapshot_at_30 = snapshot_run.clone();
+
+    // Verify snapshot captured non-trivial MUGEN state
+    assert_eq!(snapshot_at_30.fighters[0].mugen_state.get_var(0), 29); // frame counter (0-indexed, last frame was 29)
+    assert_ne!(snapshot_at_30.fighters[0].mugen_state.get_var(1), 0); // RNG accumulator should be non-zero
+    assert_ne!(snapshot_at_30.fighters[0].mugen_state.get_var(10), 0);
+    assert_ne!(snapshot_at_30.fighters[1].mugen_state.get_var(40), 0);
+
+    // Continue to frame 60
+    for frame_inputs in &inputs[30..] {
+        simulate_mugen_frame(&mut snapshot_run, *frame_inputs);
+    }
+
+    // --- Rollback run: restore snapshot at 30, re-simulate to 60 ---
+    let mut rollback_run = snapshot_at_30;
+    for frame_inputs in &inputs[30..] {
+        simulate_mugen_frame(&mut rollback_run, *frame_inputs);
+    }
+
+    // Core assertion: bit-identical state at frame 60
+    assert_eq!(
+        full_run, snapshot_run,
+        "full run and snapshot run diverged at frame 60"
+    );
+    assert_eq!(
+        full_run, rollback_run,
+        "full run and rollback run diverged at frame 60 (rollback failed)"
+    );
+
+    // Verify specific MUGEN fields are correct and non-trivial
+    for i in 0..2 {
+        let ms = &full_run.fighters[i].mugen_state;
+        // var(0) should be last frame number (59)
+        assert_eq!(ms.get_var(0), 59, "fighter {i} var(0) should track frame");
+        // var(1) should be non-zero (accumulated RNG values)
+        assert_ne!(ms.get_var(1), 0, "fighter {i} var(1) should have RNG accumulation");
+        // var(10) and var(40) verify both lo/hi halves of storage
+        assert_eq!(ms.get_var(10), 59 * 3, "fighter {i} var(10) should be frame*3");
+        assert_eq!(ms.get_var(40), 59 * 7, "fighter {i} var(40) should be frame*7");
+        // ctrl toggles based on frame (59/15 = 3, 3%2 = 1, so ctrl=false)
+        assert!(!ms.ctrl, "fighter {i} ctrl should be false at frame 59");
+        // move_hit: 59%20 = 19, 19 < 5 is false
+        assert!(!ms.move_hit, "fighter {i} move_hit should be false at frame 59");
+        // move_contact: 59%20 = 19, 19 < 8 is false
+        assert!(!ms.move_contact, "fighter {i} move_contact should be false at frame 59");
+        // move_guarded: 59%30 = 29, 29 < 3 is false
+        assert!(!ms.move_guarded, "fighter {i} move_guarded should be false at frame 59");
+        // anim state should have advanced
+        assert!(
+            ms.anim_elem > 0 || ms.anim_num > 0,
+            "fighter {i} animation should have advanced"
+        );
+    }
 }

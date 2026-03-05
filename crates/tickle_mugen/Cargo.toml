@@ -10,5 +10,6 @@ thiserror = "2.0"
 bytemuck = "1.14"
 log = "0.4"
 mugen-sff = { git = "https://github.com/reu/rugen", package = "mugen-sff" }
+tickle_core = { path = "../tickle_core" }
 
 [dev-dependencies]

@@ -17,11 +17,16 @@ use tickle_core::systems::audio_events::{
 };
 use tickle_core::systems::collision::HitEvent;
 use tickle_core::{
-    Direction, Facing, Health, HitType, Hitbox, InputState, LogicRect, LogicVec2, Position,
-    PowerGauge, PreviousPosition, StateMachine, StateType, Velocity, BUTTON_A,
+    Direction, Facing, FighterState, Health, HitType, Hitbox, InputBuffer, InputState,
+    LogicRect, LogicVec2, Position, PowerGauge, PreviousPosition, Velocity, BUTTON_A,
+    is_hit_state, is_guard_state,
 };
 use tickle_render::{RenderContext, Texture};
-use tickle_mugen::{Air, SffV1, SpriteAtlas};
+use tickle_mugen::{
+    Air, CharacterDef, Cmd, CmdParser, Cns, CnsParser, MugenCollisionFighter,
+    MugenCommandRecognizer, MugenFighterState, SffV1, SpriteAtlas, StateDef, StateController,
+    merge_statedefs, mugen_combat_frame, mugen_tick_with_p2, reset_combo_if_recovered,
+};
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
@@ -39,15 +44,61 @@ use text_renderer::{TextArea, TextRenderer};
 // ---------------------------------------------------------------------------
 
 const GROUND_Y: i32 = 0;
-const GRAVITY: i32 = -80;
-const MOVE_SPEED: i32 = 400; // 4 px/frame
-const JUMP_VEL: i32 = 1800; // 18 px/frame upward
-const FRICTION: i32 = 50;
+const DEFAULT_GRAVITY: i32 = -80;
 
 /// Fighter visual size in pixels for rendering.
-/// Matches the sprite sheet frame size (100x109) to avoid distortion.
 const FIGHTER_W: f32 = 100.0;
 const FIGHTER_H: f32 = 109.0;
+
+/// MUGEN character data loaded from .def file at startup.
+struct CharacterData {
+    cns: Cns,
+    /// Parsed command list for input recognition
+    cmd: Option<Cmd>,
+    // Physics derived from CNS
+    move_speed: i32,
+    #[allow(dead_code)]
+    jump_vel_x: i32,
+    jump_vel_y: i32,
+    gravity: i32,
+    friction: i32,
+}
+
+impl CharacterData {
+    fn from_cns(
+        mut cns: Cns,
+        common_statedefs: std::collections::HashMap<i32, StateDef>,
+        common_global_controllers: Vec<StateController>,
+        cmd: Option<Cmd>,
+    ) -> Self {
+        let move_speed = (cns.velocity.walk_fwd.x * 100.0) as i32;
+        let jump_vel_x = 0;
+        let jump_vel_y = (cns.velocity.jump_neu.y.abs() * 100.0) as i32;
+        let gravity = -(cns.movement.yaccel * 100.0) as i32;
+        let friction = (cns.movement.stand_friction * 100.0) as i32;
+        // Merge common statedefs into cns.statedefs so mugen_tick_with_p2 can find all states.
+        let char_states = std::mem::take(&mut cns.statedefs);
+        cns.statedefs = merge_statedefs(common_statedefs, char_states);
+        // Inject fallback global controllers if the character has none of its own.
+        if cns.global_state_controllers.is_empty() {
+            cns.global_state_controllers = common_global_controllers;
+        }
+        Self {
+            cns,
+            cmd,
+            move_speed,
+            jump_vel_x,
+            jump_vel_y,
+            gravity,
+            friction,
+        }
+    }
+
+    #[allow(dead_code)]
+    fn anim_for_state(&self, state_num: i32) -> Option<i32> {
+        self.cns.statedefs.get(&state_num).and_then(|sd| sd.anim)
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Player tag components
@@ -87,6 +138,20 @@ impl RawInput {
 }
 
 // ---------------------------------------------------------------------------
+// Owned fighter data snapshot for cross-fighter logic
+// ---------------------------------------------------------------------------
+
+struct FighterData {
+    fs: FighterState,
+    mugen: MugenFighterState,
+    pos: Position,
+    vel: Velocity,
+    hp: Health,
+    power: PowerGauge,
+    facing: Facing,
+}
+
+// ---------------------------------------------------------------------------
 // App
 // ---------------------------------------------------------------------------
 
@@ -105,18 +170,21 @@ struct App {
     menu: MenuSystem,
     pending_menu_input: MenuInput,
     music_started: bool,
-    prev_states: (StateType, StateType),
-    // Fighter sprites — KFM (Kung Fu Man) MUGEN character
+    // Entity IDs for direct write-back after MUGEN tick
+    p1_entity: hecs::Entity,
+    p2_entity: hecs::Entity,
+    // Fighter sprites — MUGEN character
     fighter_texture: Option<Texture>,
     use_sprites: bool,
     kfm_atlas: Option<SpriteAtlas>,
     kfm_air: Option<Air>,
+    char_data: Option<CharacterData>,
 }
 
 impl App {
     fn new() -> Self {
         let mut world = World::new();
-        spawn_fighters(&mut world);
+        let (p1_entity, p2_entity) = spawn_fighters(&mut world);
 
         // Initialize audio (non-fatal if it fails -- game runs without sound)
         let audio = match AudioSystem::new("./assets") {
@@ -148,6 +216,15 @@ impl App {
             }
         };
 
+        // Load MUGEN character from .def file
+        let char_data = Self::load_character_data("./assets/mugen/kyo");
+        if let Some(ref cd) = char_data {
+            log::info!(
+                "Character CNS loaded: life={}, walk_speed={}, gravity={}",
+                cd.cns.data.life, cd.move_speed, cd.gravity
+            );
+        }
+
         Self {
             render_ctx: None,
             quad_renderer: None,
@@ -163,18 +240,269 @@ impl App {
             menu: MenuSystem::new(),
             pending_menu_input: MenuInput::None,
             music_started: false,
-            prev_states: (StateType::Idle, StateType::Idle),
+            p1_entity,
+            p2_entity,
             fighter_texture: None,
             use_sprites: false,
             kfm_atlas: None,
             kfm_air: None,
+            char_data,
         }
     }
 }
 
-fn spawn_fighters(world: &mut World) {
+impl App {
+    fn load_character_data(char_dir: &str) -> Option<CharacterData> {
+        // Try to find a .def file in the character directory
+        let def_path = std::fs::read_dir(char_dir)
+            .ok()?
+            .filter_map(|e| e.ok())
+            .find(|e| {
+                e.path()
+                    .extension()
+                    .map(|ext| ext.eq_ignore_ascii_case("def"))
+                    .unwrap_or(false)
+            })?
+            .path();
+
+        log::info!("Loading character from: {}", def_path.display());
+        let char_def = match CharacterDef::parse(&def_path) {
+            Ok(d) => d,
+            Err(e) => {
+                log::warn!("Failed to parse .def file: {}", e);
+                return None;
+            }
+        };
+
+        log::info!(
+            "Character: {} (by {})",
+            char_def.info.displayname,
+            char_def.info.author.as_deref().unwrap_or("unknown")
+        );
+
+        let cns_path = format!("{}/{}", char_dir, char_def.files.cns);
+        let cns = match CnsParser::parse(&cns_path) {
+            Ok(c) => c,
+            Err(e) => {
+                log::warn!("Failed to parse CNS file: {}", e);
+                return None;
+            }
+        };
+
+        // Load CMD file for command/motion input recognition.
+        let cmd_path = format!("{}/{}", char_dir, char_def.files.cmd);
+        let cmd = match CmdParser::parse(&cmd_path) {
+            Ok(c) => {
+                log::info!("CMD loaded: {} commands", c.commands.len());
+                Some(c)
+            }
+            Err(e) => {
+                log::warn!("Failed to parse CMD file ({}): {}", cmd_path, e);
+                None
+            }
+        };
+
+        // Load common1.cns, falling back to built-in minimal states using character velocities.
+        let (common_statedefs, common_global_ctrls) =
+            CnsParser::parse("assets/mugen/common1.cns")
+                .map(|c| (c.statedefs, c.global_state_controllers))
+                .unwrap_or_else(|_| {
+                    log::warn!("common1.cns not found; generating fallback common states from character data");
+                    Self::make_fallback_common_statedefs(&cns)
+                });
+
+        Some(CharacterData::from_cns(cns, common_statedefs, common_global_ctrls, cmd))
+    }
+
+    /// Generate minimal common statedefs and global controllers using the character's own velocity values.
+    /// Used as a fallback when common1.cns is not available.
+    /// Returns `(statedefs, global_controllers)`.
+    fn make_fallback_common_statedefs(
+        cns: &Cns,
+    ) -> (std::collections::HashMap<i32, StateDef>, Vec<StateController>) {
+        let walk_fwd  = cns.velocity.walk_fwd.x;
+        let walk_back = cns.velocity.walk_back.x;
+        let jump_y    = cns.velocity.jump_neu.y;
+        let jump_fwd_x  = cns.velocity.jump_fwd.x;
+        let jump_back_x = cns.velocity.jump_back.x;
+
+        // In MUGEN coords: -y=up, jump_y is negative (upward).
+        // Statedef -1: global transitions (walk, jump).
+        // State 50: air stand (used by Kyo's state 40 → 50 transition).
+        // State 52: landing.
+        let content = format!(
+r#"[Statedef -1]
+
+[State -1, Walk Fwd]
+type = ChangeState
+value = 20
+triggerall = ctrl
+triggerall = statetype = S
+trigger1 = command = "holdfwd"
+
+[State -1, Walk Back]
+type = ChangeState
+value = 21
+triggerall = ctrl
+triggerall = statetype = S
+trigger1 = command = "holdback"
+
+[State -1, Jump Neutral]
+type = ChangeState
+value = 40
+triggerall = ctrl
+triggerall = statetype = S
+triggerall = command != "holdfwd"
+triggerall = command != "holdback"
+trigger1 = command = "holdup"
+
+[State -1, Jump Forward]
+type = ChangeState
+value = 40
+triggerall = ctrl
+triggerall = statetype = S
+trigger1 = command = "holdfwd"
+trigger1 = command = "holdup"
+
+[State -1, Jump Back]
+type = ChangeState
+value = 40
+triggerall = ctrl
+triggerall = statetype = S
+trigger1 = command = "holdback"
+trigger1 = command = "holdup"
+
+[Statedef 0]
+type = S
+physics = S
+anim = 0
+ctrl = 1
+
+[State 0, Vel Reset]
+type = VelSet
+trigger1 = 1
+x = 0
+y = 0
+
+[Statedef 20]
+type = S
+physics = S
+anim = 20
+ctrl = 1
+velset = {walk_fwd}, 0
+
+[State 20, Keep Walking Fwd]
+type = VelSet
+trigger1 = command = "holdfwd"
+x = {walk_fwd}
+y = 0
+
+[State 20, Stop]
+type = ChangeState
+value = 0
+trigger1 = command != "holdfwd"
+
+[Statedef 21]
+type = S
+physics = S
+anim = 21
+ctrl = 1
+velset = {walk_back}, 0
+
+[State 21, Keep Walking Back]
+type = VelSet
+trigger1 = command = "holdback"
+x = {walk_back}
+y = 0
+
+[State 21, Stop]
+type = ChangeState
+value = 0
+trigger1 = command != "holdback"
+
+[Statedef 40]
+type = A
+physics = A
+anim = 40
+ctrl = 0
+velset = 0, {jump_y}
+
+[State 40, Land]
+type = ChangeState
+value = 0
+triggerall = pos y >= 0
+trigger1 = vel y >= 0
+
+[Statedef 41]
+type = A
+physics = A
+anim = 41
+ctrl = 0
+velset = {jump_fwd_x}, {jump_y}
+
+[State 41, Land]
+type = ChangeState
+value = 0
+triggerall = pos y >= 0
+trigger1 = vel y >= 0
+
+[Statedef 42]
+type = A
+physics = A
+anim = 42
+ctrl = 0
+velset = {jump_back_x}, {jump_y}
+
+[State 42, Land]
+type = ChangeState
+value = 0
+triggerall = pos y >= 0
+trigger1 = vel y >= 0
+
+[Statedef 50]
+type = A
+physics = A
+anim = 50
+ctrl = 1
+
+[State 50, Land]
+type = ChangeState
+value = 52
+triggerall = pos y >= 0
+trigger1 = vel y >= 0
+
+[Statedef 52]
+type = S
+physics = S
+anim = 52
+ctrl = 0
+
+[State 52, Return to Stand]
+type = ChangeState
+value = 0
+trigger1 = animtime = 0
+
+[Statedef 5000]
+type = L
+physics = N
+anim = 5000
+ctrl = 0
+"#,
+            walk_fwd = walk_fwd,
+            walk_back = walk_back,
+            jump_y = jump_y,
+            jump_fwd_x = jump_fwd_x,
+            jump_back_x = jump_back_x,
+        );
+
+        CnsParser::parse_statedefs_only(&content)
+    }
+}
+
+/// Spawn both fighters and return their entity IDs.
+fn spawn_fighters(world: &mut World) -> (hecs::Entity, hecs::Entity) {
     // Player 1 -- left side (blue)
-    world.spawn((
+    let p1 = world.spawn((
         Player1,
         Position {
             pos: LogicVec2::from_pixels(200, 0),
@@ -186,13 +514,15 @@ fn spawn_fighters(world: &mut World) {
             vel: LogicVec2::ZERO,
         },
         Facing { dir: Facing::RIGHT },
-        StateMachine::new(),
+        FighterState::new(),
+        MugenFighterState::default(),
+        InputBuffer::new(),
         Health::new(10_000),
         PowerGauge::new(),
         FighterColor([0.2, 0.4, 0.9, 1.0]),
     ));
     // Player 2 -- right side (red)
-    world.spawn((
+    let p2 = world.spawn((
         Player2,
         Position {
             pos: LogicVec2::from_pixels(600, 0),
@@ -204,11 +534,14 @@ fn spawn_fighters(world: &mut World) {
             vel: LogicVec2::ZERO,
         },
         Facing { dir: Facing::LEFT },
-        StateMachine::new(),
+        FighterState::new(),
+        MugenFighterState::default(),
+        InputBuffer::new(),
         Health::new(10_000),
         PowerGauge::new(),
         FighterColor([0.9, 0.2, 0.2, 1.0]),
     ));
+    (p1, p2)
 }
 
 // ---------------------------------------------------------------------------
@@ -244,10 +577,11 @@ impl ApplicationHandler for App {
         self.text_renderer = Some(tr);
         log::info!("Text renderer created");
 
-        // Load Kyo Kusanagi MUGEN character
-        log::info!("Loading Kyo Kusanagi character...");
+        // Load MUGEN character sprites and animations
+        log::info!("Loading MUGEN character sprites...");
         let kyo_base = "./assets/mugen/kyo";
-        match SffV1::load(format!("{}/kyo.sff", kyo_base)) {
+        let sff_file = format!("{}/kyo.sff", kyo_base);
+        match SffV1::load(&sff_file) {
             Ok(sff) => {
                 log::info!("Kyo SFF loaded: {} sprites", sff.sprite_count());
                 let atlas = SpriteAtlas::build(&sff);
@@ -405,143 +739,345 @@ fn key_to_menu_input(key: KeyCode, menu: &MenuSystem) -> MenuInput {
 // Game logic (runs at fixed 60 FPS)
 // ---------------------------------------------------------------------------
 
+/// Advance MugenFighterState::anim_elem to the correct AIR frame based on elapsed anim_time.
+/// Handles looping: if all frames have finite duration, wraps anim_time via modulo.
+fn advance_anim_elem(mugen: &mut MugenFighterState, air: &Air) {
+    let action = match air
+        .get_action(mugen.anim_num as u32)
+        .or_else(|| air.get_action(0))
+    {
+        Some(a) => a,
+        None => return,
+    };
+    if action.frames.is_empty() {
+        return;
+    }
+
+    // Compute total finite duration (stop at first frame with duration < 0 = infinite hold).
+    let mut total_duration = 0i32;
+    let mut loops = true;
+    for frame in &action.frames {
+        if frame.duration < 0 {
+            loops = false;
+            break;
+        }
+        total_duration = total_duration.saturating_add(frame.duration);
+    }
+
+    // Effective time: loop if all frames are finite; otherwise advance monotonically.
+    let effective_time = if loops && total_duration > 0 {
+        mugen.anim_time % total_duration
+    } else {
+        mugen.anim_time
+    };
+
+    let mut cumulative = 0i32;
+    for (i, frame) in action.frames.iter().enumerate() {
+        let dur = if frame.duration < 0 { i32::MAX / 2 } else { frame.duration };
+        if effective_time < cumulative + dur {
+            mugen.anim_elem = (i + 1) as i32; // anim_elem is 1-based
+            return;
+        }
+        cumulative = cumulative.saturating_add(dur);
+    }
+    // Past all frames: hold on last frame (only reachable for non-looping anims)
+    mugen.anim_elem = action.frames.len() as i32;
+}
+
 fn logic_update(
     world: &mut World,
     p1_input: &InputState,
     p2_input: &InputState,
     stage: &stage::Stage,
+    char_data: Option<&CharacterData>,
+    kfm_air: Option<&Air>,
 ) -> Vec<HitEvent> {
-    // Save previous positions for interpolation.
+    // Save previous positions for render interpolation.
     for (_, (pos, prev)) in world.query_mut::<(&Position, &mut PreviousPosition)>() {
         prev.pos = pos.pos;
     }
 
-    // Apply input to Player 1.
-    for (_, (_, vel, sm)) in world.query_mut::<(&Player1, &mut Velocity, &mut StateMachine)>() {
-        apply_input(vel, sm, p1_input);
-    }
-    // Apply input to Player 2.
-    for (_, (_, vel, sm)) in world.query_mut::<(&Player2, &mut Velocity, &mut StateMachine)>() {
-        apply_input(vel, sm, p2_input);
-    }
-
-    // Physics: gravity + velocity integration + ground detection.
-    for (_, (pos, vel, sm)) in
-        world.query_mut::<(&mut Position, &mut Velocity, &mut StateMachine)>()
+    // Push raw input into InputBuffers and run command recognition.
+    for (_, (_, ib, mugen, facing)) in
+        world.query_mut::<(&Player1, &mut InputBuffer, &mut MugenFighterState, &Facing)>()
     {
-        // Gravity (only when airborne).
-        if pos.pos.y > GROUND_Y || vel.vel.y > 0 {
-            vel.vel.y += GRAVITY;
-        }
-        // Ground friction.
-        if pos.pos.y <= GROUND_Y && sm.current_state() != StateType::Jump {
-            if vel.vel.x > 0 {
-                vel.vel.x = (vel.vel.x - FRICTION).max(0);
-            } else if vel.vel.x < 0 {
-                vel.vel.x = (vel.vel.x + FRICTION).min(0);
+        ib.push(*p1_input);
+        if let Some(cd) = char_data {
+            if let Some(cmd) = &cd.cmd {
+                mugen.active_commands =
+                    MugenCommandRecognizer::recognize(&cmd.commands, ib, facing.dir == Facing::RIGHT);
             }
         }
-        // Integrate velocity.
-        pos.pos.x += vel.vel.x;
-        pos.pos.y += vel.vel.y;
-        // Ground clamp.
-        if pos.pos.y < GROUND_Y {
-            pos.pos.y = GROUND_Y;
-            vel.vel.y = 0;
-            sm.land();
+    }
+    for (_, (_, ib, mugen, facing)) in
+        world.query_mut::<(&Player2, &mut InputBuffer, &mut MugenFighterState, &Facing)>()
+    {
+        ib.push(*p2_input);
+        if let Some(cd) = char_data {
+            if let Some(cmd) = &cd.cmd {
+                mugen.active_commands =
+                    MugenCommandRecognizer::recognize(&cmd.commands, ib, facing.dir == Facing::RIGHT);
+            }
         }
-        // Stage bounds.
-        pos.pos.x = stage.clamp_x(pos.pos.x);
-        // Advance state frame and handle auto-transitions.
-        sm.update();
     }
 
-    // Simple proximity-based hit detection for attack states.
-    let mut p1_data: Option<(Position, StateMachine)> = None;
-    let mut p2_data: Option<(Position, StateMachine)> = None;
-    for (_, (_, pos, sm)) in world.query::<(&Player1, &Position, &StateMachine)>().iter() {
-        p1_data = Some((*pos, sm.clone()));
+    // Extract owned copies of both fighters (allows cross-fighter reads during tick).
+    let mut p1_opt: Option<FighterData> = None;
+    for (_, (_, fs, mugen, pos, vel, hp, power, facing)) in world
+        .query::<(
+            &Player1,
+            &FighterState,
+            &MugenFighterState,
+            &Position,
+            &Velocity,
+            &Health,
+            &PowerGauge,
+            &Facing,
+        )>()
+        .iter()
+    {
+        p1_opt = Some(FighterData {
+            fs: *fs,
+            mugen: mugen.clone(),
+            pos: *pos,
+            vel: *vel,
+            hp: *hp,
+            power: *power,
+            facing: *facing,
+        });
     }
-    for (_, (_, pos, sm)) in world.query::<(&Player2, &Position, &StateMachine)>().iter() {
-        p2_data = Some((*pos, sm.clone()));
+    let mut p2_opt: Option<FighterData> = None;
+    for (_, (_, fs, mugen, pos, vel, hp, power, facing)) in world
+        .query::<(
+            &Player2,
+            &FighterState,
+            &MugenFighterState,
+            &Position,
+            &Velocity,
+            &Health,
+            &PowerGauge,
+            &Facing,
+        )>()
+        .iter()
+    {
+        p2_opt = Some(FighterData {
+            fs: *fs,
+            mugen: mugen.clone(),
+            pos: *pos,
+            vel: *vel,
+            hp: *hp,
+            power: *power,
+            facing: *facing,
+        });
     }
+
+    let (mut p1, mut p2) = match (p1_opt, p2_opt) {
+        (Some(a), Some(b)) => (a, b),
+        _ => return vec![],
+    };
 
     let mut hit_events = Vec::new();
-    if let (Some((p1_pos, p1_sm)), Some((p2_pos, p2_sm))) = (p1_data, p2_data) {
-        let distance = (p1_pos.pos.x - p2_pos.pos.x).abs();
-        let hit_range = 8000; // ~80 pixels in logic coords
 
-        // P1 attacking P2: generate hit on the first active frame.
-        if let StateType::Attack(id) = p1_sm.current_state() {
-            if p1_sm.state.state_frame == 1 && distance < hit_range {
-                let damage = 500 + (id as i32) * 200;
-                hit_events.push(HitEvent {
-                    attacker: 0,
-                    defender: 1,
-                    hitbox: Hitbox {
-                        rect: LogicRect::new(0, 0, 100, 100),
-                        damage,
-                        hitstun: 15,
-                        blockstun: 8,
-                        knockback: LogicVec2::new(300, 0),
-                        hit_type: HitType::Mid,
-                    },
-                });
-            }
+    if let Some(cd) = char_data {
+        // Snapshot pre-tick opponent state for simultaneous-tick semantics.
+        let p1_snap_fs = p1.fs;
+        let p1_snap_mugen = p1.mugen.clone();
+        let p1_snap_pos = p1.pos;
+        let p1_snap_vel = p1.vel;
+        let p1_snap_hp = p1.hp;
+
+        let p2_snap_fs = p2.fs;
+        let p2_snap_mugen = p2.mugen.clone();
+        let p2_snap_pos = p2.pos;
+        let p2_snap_vel = p2.vel;
+        let p2_snap_hp = p2.hp;
+
+        // Run MUGEN state machine tick for both fighters.
+        mugen_tick_with_p2(
+            &cd.cns,
+            &mut p1.fs,
+            &mut p1.mugen,
+            &mut p1.pos,
+            &mut p1.vel,
+            &mut p1.hp,
+            &mut p1.power,
+            &p2_snap_fs,
+            &p2_snap_mugen,
+            &p2_snap_pos,
+            &p2_snap_vel,
+            &p2_snap_hp,
+        );
+        mugen_tick_with_p2(
+            &cd.cns,
+            &mut p2.fs,
+            &mut p2.mugen,
+            &mut p2.pos,
+            &mut p2.vel,
+            &mut p2.hp,
+            &mut p2.power,
+            &p1_snap_fs,
+            &p1_snap_mugen,
+            &p1_snap_pos,
+            &p1_snap_vel,
+            &p1_snap_hp,
+        );
+
+        // Integrate velocity into position (MUGEN coords: -y = up, +y = down/gravity).
+        p1.pos.pos.x += p1.vel.vel.x;
+        p1.pos.pos.y += p1.vel.vel.y;
+        p2.pos.pos.x += p2.vel.vel.x;
+        p2.pos.pos.y += p2.vel.vel.y;
+
+        // Advance animation element based on elapsed anim_time and AIR frame durations.
+        if let Some(air) = kfm_air {
+            advance_anim_elem(&mut p1.mugen, air);
+            advance_anim_elem(&mut p2.mugen, air);
         }
 
-        // P2 attacking P1.
-        if let StateType::Attack(id) = p2_sm.current_state() {
-            if p2_sm.state.state_frame == 1 && distance < hit_range {
-                let damage = 500 + (id as i32) * 200;
-                hit_events.push(HitEvent {
-                    attacker: 1,
-                    defender: 0,
-                    hitbox: Hitbox {
-                        rect: LogicRect::new(0, 0, 100, 100),
-                        damage,
-                        hitstun: 15,
-                        blockstun: 8,
-                        knockback: LogicVec2::new(-300, 0),
-                        hit_type: HitType::Mid,
-                    },
-                });
-            }
+        // Auto-facing: fighters always face each other.
+        if p1.pos.pos.x < p2.pos.pos.x {
+            p1.facing = Facing { dir: Facing::RIGHT };
+            p2.facing = Facing { dir: Facing::LEFT };
+        } else if p1.pos.pos.x > p2.pos.pos.x {
+            p1.facing = Facing { dir: Facing::LEFT };
+            p2.facing = Facing { dir: Facing::RIGHT };
         }
 
-        // Apply hit damage to defenders.
-        for hit in &hit_events {
-            if hit.defender == 1 {
-                for (_, (_, hp, sm)) in world.query_mut::<(&Player2, &mut Health, &mut StateMachine)>() {
-                    hp.take_damage(hit.hitbox.damage);
-                    sm.force_enter(StateType::Hitstun, hit.hitbox.hitstun);
-                }
-            } else {
-                for (_, (_, hp, sm)) in world.query_mut::<(&Player1, &mut Health, &mut StateMachine)>() {
-                    hp.take_damage(hit.hitbox.damage);
-                    sm.force_enter(StateType::Hitstun, hit.hitbox.hitstun);
-                }
-            }
+        // MUGEN combat: HitDef collision, damage, hitstun, knockback.
+        let combat_result = {
+            let mut p1_cf = MugenCollisionFighter {
+                position: &p1.pos,
+                velocity: &mut p1.vel,
+                facing: &p1.facing,
+                fighter_state: &mut p1.fs,
+                mugen: &mut p1.mugen,
+                health: &mut p1.hp,
+                power: &mut p1.power,
+            };
+            let mut p2_cf = MugenCollisionFighter {
+                position: &p2.pos,
+                velocity: &mut p2.vel,
+                facing: &p2.facing,
+                fighter_state: &mut p2.fs,
+                mugen: &mut p2.mugen,
+                health: &mut p2.hp,
+                power: &mut p2.power,
+            };
+            mugen_combat_frame(&mut p1_cf, &mut p2_cf, kfm_air, 8000)
+        };
+
+        // Reset combo counters when defenders recover.
+        reset_combo_if_recovered(&mut p1.mugen, &p2.fs);
+        reset_combo_if_recovered(&mut p2.mugen, &p1.fs);
+
+        // Drain pending sounds (MUGEN PlaySnd controllers).
+        // Logged for now; full MUGEN SND audio integration is future work.
+        for snd in p1.mugen.pending_sounds.drain(..) {
+            log::trace!("P1 PlaySnd: group={} sound={}", snd.group, snd.sound);
         }
+        for snd in p2.mugen.pending_sounds.drain(..) {
+            log::trace!("P2 PlaySnd: group={} sound={}", snd.group, snd.sound);
+        }
+
+        // Ground clamping and stage bounds.
+        for data in [&mut p1, &mut p2] {
+            // MUGEN coords: -y=up, so y > 0 means below ground → clamp.
+            if data.pos.pos.y > GROUND_Y {
+                data.pos.pos.y = GROUND_Y;
+                data.vel.vel.y = 0;
+            }
+            data.pos.pos.x = stage.clamp_x(data.pos.pos.x);
+        }
+
+        // Build HitEvents for the audio/UI pipeline.
+        if let Some(ref hit) = combat_result.p1_hit {
+            hit_events.push(HitEvent {
+                attacker: 0,
+                defender: 1,
+                hitbox: Hitbox {
+                    rect: LogicRect::new(0, 0, 100, 100),
+                    damage: hit.damage,
+                    hitstun: hit.hitstun,
+                    blockstun: 0,
+                    knockback: LogicVec2::ZERO,
+                    hit_type: HitType::Mid,
+                },
+            });
+        }
+        if let Some(ref hit) = combat_result.p2_hit {
+            hit_events.push(HitEvent {
+                attacker: 1,
+                defender: 0,
+                hitbox: Hitbox {
+                    rect: LogicRect::new(0, 0, 100, 100),
+                    damage: hit.damage,
+                    hitstun: hit.hitstun,
+                    blockstun: 0,
+                    knockback: LogicVec2::ZERO,
+                    hit_type: HitType::Mid,
+                },
+            });
+        }
+    } else {
+        // Fallback: basic physics when no CNS is loaded.
+        p1.vel.vel.y += DEFAULT_GRAVITY;
+        p1.pos.pos.x += p1.vel.vel.x;
+        p1.pos.pos.y += p1.vel.vel.y;
+        if p1.pos.pos.y < GROUND_Y {
+            p1.pos.pos.y = GROUND_Y;
+            p1.vel.vel.y = 0;
+        }
+        p1.pos.pos.x = stage.clamp_x(p1.pos.pos.x);
+
+        p2.vel.vel.y += DEFAULT_GRAVITY;
+        p2.pos.pos.x += p2.vel.vel.x;
+        p2.pos.pos.y += p2.vel.vel.y;
+        if p2.pos.pos.y < GROUND_Y {
+            p2.pos.pos.y = GROUND_Y;
+            p2.vel.vel.y = 0;
+        }
+        p2.pos.pos.x = stage.clamp_x(p2.pos.pos.x);
+    }
+
+    // Write processed state back to ECS.
+    for (_, (_, fs, mugen, pos, vel, hp, power, facing)) in world.query_mut::<(
+        &Player1,
+        &mut FighterState,
+        &mut MugenFighterState,
+        &mut Position,
+        &mut Velocity,
+        &mut Health,
+        &mut PowerGauge,
+        &mut Facing,
+    )>() {
+        *fs = p1.fs;
+        *mugen = p1.mugen.clone();
+        *pos = p1.pos;
+        *vel = p1.vel;
+        *hp = p1.hp;
+        *power = p1.power;
+        *facing = p1.facing;
+    }
+    for (_, (_, fs, mugen, pos, vel, hp, power, facing)) in world.query_mut::<(
+        &Player2,
+        &mut FighterState,
+        &mut MugenFighterState,
+        &mut Position,
+        &mut Velocity,
+        &mut Health,
+        &mut PowerGauge,
+        &mut Facing,
+    )>() {
+        *fs = p2.fs;
+        *mugen = p2.mugen.clone();
+        *pos = p2.pos;
+        *vel = p2.vel;
+        *hp = p2.hp;
+        *power = p2.power;
+        *facing = p2.facing;
     }
 
     hit_events
-}
-
-fn apply_input(vel: &mut Velocity, sm: &mut StateMachine, input: &InputState) {
-    let was_jumping = sm.current_state() == StateType::Jump;
-    // Let the state machine decide the transition.
-    sm.try_transition(input);
-
-    match sm.current_state() {
-        StateType::WalkForward => vel.vel.x = MOVE_SPEED,
-        StateType::WalkBackward => vel.vel.x = -MOVE_SPEED,
-        StateType::Jump if !was_jumping => {
-            // Just entered jump this frame
-            vel.vel.y = JUMP_VEL;
-        }
-        _ => {}
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -582,22 +1118,23 @@ impl App {
         let ui = &mut self.ui_renderer;
         let stage = &self.stage;
         let menu = &mut self.menu;
-        let prev_states = &mut self.prev_states;
         let audio = &mut self.audio;
+        let char_data = self.char_data.as_ref();
+        let kfm_air = self.kfm_air.as_ref();
 
         let result = self.game_loop.tick(|| {
             if menu.should_run_logic() {
-                // Capture pre-update states for change detection.
-                let mut p1_pre = StateType::Idle;
-                let mut p2_pre = StateType::Idle;
-                for (_, (_, sm)) in world.query::<(&Player1, &StateMachine)>().iter() {
-                    p1_pre = sm.current_state();
+                // Capture pre-update state numbers for change detection.
+                let mut p1_pre = 0i32;
+                let mut p2_pre = 0i32;
+                for (_, (_, fs)) in world.query::<(&Player1, &FighterState)>().iter() {
+                    p1_pre = fs.state_num;
                 }
-                for (_, (_, sm)) in world.query::<(&Player2, &StateMachine)>().iter() {
-                    p2_pre = sm.current_state();
+                for (_, (_, fs)) in world.query::<(&Player2, &FighterState)>().iter() {
+                    p2_pre = fs.state_num;
                 }
 
-                let hit_events = logic_update(world, &p1_input, &p2_input, stage);
+                let hit_events = logic_update(world, &p1_input, &p2_input, stage, char_data, kfm_air);
 
                 // Register hits for combo counter.
                 for hit in &hit_events {
@@ -607,29 +1144,20 @@ impl App {
                 ui.update(world);
                 ui.set_wins(menu.p1_wins(), menu.p2_wins());
 
-                // Capture post-update states.
-                let mut p1_post = StateType::Idle;
-                let mut p2_post = StateType::Idle;
-                for (_, (_, sm)) in world.query::<(&Player1, &StateMachine)>().iter() {
-                    p1_post = sm.current_state();
+                // Capture post-update state numbers.
+                let mut p1_post = 0i32;
+                let mut p2_post = 0i32;
+                for (_, (_, fs)) in world.query::<(&Player1, &FighterState)>().iter() {
+                    p1_post = fs.state_num;
                 }
-                for (_, (_, sm)) in world.query::<(&Player2, &StateMachine)>().iter() {
-                    p2_post = sm.current_state();
+                for (_, (_, fs)) in world.query::<(&Player2, &FighterState)>().iter() {
+                    p2_post = fs.state_num;
                 }
 
                 let state_changes = (
-                    if p1_pre != p1_post {
-                        Some(p1_post)
-                    } else {
-                        None
-                    },
-                    if p2_pre != p2_post {
-                        Some(p2_post)
-                    } else {
-                        None
-                    },
+                    if p1_pre != p1_post { Some(p1_post) } else { None },
+                    if p2_pre != p2_post { Some(p2_post) } else { None },
                 );
-                *prev_states = (p1_post, p2_post);
 
                 let (new_round, round_audio) = menu.update_round(world, ui);
                 if let Some(audio_evt) = round_audio {
@@ -688,17 +1216,17 @@ impl App {
                     .collect();
                 process_audio_events(audio, &hit_audio);
 
-                // Play sounds for state changes (hitstun/blockstun).
+                // Play sounds for state transitions into hit/guard states.
                 let mut state_audio = Vec::new();
                 if let Some(new_state) = state_changes.0 {
-                    if matches!(new_state, StateType::Hitstun | StateType::Blockstun) {
+                    if is_hit_state(new_state) || is_guard_state(new_state) {
                         state_audio.push(AudioEvent::PlayActionSound {
                             id: "hit_light".to_string(),
                         });
                     }
                 }
                 if let Some(new_state) = state_changes.1 {
-                    if matches!(new_state, StateType::Hitstun | StateType::Blockstun) {
+                    if is_hit_state(new_state) || is_guard_state(new_state) {
                         state_audio.push(AudioEvent::PlayActionSound {
                             id: "hit_light".to_string(),
                         });
@@ -760,14 +1288,14 @@ impl App {
         // Fighter quads (with texture)
         let mut fighter_instances: Vec<QuadInstance> = Vec::with_capacity(2);
 
-        // Fighters.
-        for (_, (pos, prev, facing, sm, _hp, color)) in self
+        // Render fighters using MUGEN anim_num / anim_elem from MugenFighterState.
+        for (_, (pos, prev, facing, mugen, _hp, color)) in self
             .world
             .query::<(
                 &Position,
                 &PreviousPosition,
                 &Facing,
-                &StateMachine,
+                &MugenFighterState,
                 &Health,
                 &FighterColor,
             )>()
@@ -778,61 +1306,40 @@ impl App {
             let x = prev_render[0] + (cur_render[0] - prev_render[0]) * alpha;
             let y = prev_render[1] + (cur_render[1] - prev_render[1]) * alpha;
 
-            // Map state machine state → KFM AIR action number
-            let action_num: u32 = match sm.current_state() {
-                StateType::Idle         => 0,
-                StateType::WalkForward  => 20,
-                StateType::WalkBackward => 21,
-                StateType::Run          => 20,
-                StateType::Crouch       => 11,
-                StateType::Jump         => 41,
-                StateType::Attack(_)    => 200,
-                StateType::Hitstun      => 5000,
-                StateType::Blockstun    => 150,
-                StateType::Knockdown    => 5030,
-            };
+            // Use MUGEN anim_num directly as the AIR action number.
+            let action_num = mugen.anim_num as u32;
 
-            // Resolve current AIR frame → SFF sprite key
+            // Resolve current anim_elem → SFF sprite key.
             let sprite_key: Option<(u16, u16)> = self.kfm_air.as_ref().and_then(|air| {
                 let action = air.get_action(action_num)
                     .or_else(|| air.get_action(0))?;
                 if action.frames.is_empty() {
-                    log::error!("❌ Action {} has no frames!", action_num);
                     return None;
                 }
-                // Advance through frames using per-frame duration
-                let mut tick = sm.state.state_frame as i32;
-                let mut frame_idx = 0usize;
-                for (i, f) in action.frames.iter().enumerate() {
-                    let dur = if f.duration < 0 { i32::MAX } else { f.duration };
-                    if tick < dur {
-                        frame_idx = i;
-                        break;
-                    }
-                    tick -= dur;
-                    frame_idx = i;
-                }
-                // Clamp to last frame for non-looping (duration=-1 on last frame)
-                let frame_idx = frame_idx.min(action.frames.len() - 1);
+                // anim_elem is 1-based; clamp to valid range.
+                let frame_idx = ((mugen.anim_elem - 1).max(0) as usize)
+                    .min(action.frames.len() - 1);
                 let f = &action.frames[frame_idx];
                 Some((f.group, f.image))
             });
-            const SPRITE_SCALE: f32 = 3.0; // Scale sprites 3x
+
+            const SPRITE_SCALE: f32 = 3.0;
             let (render_w, render_h, screen_x, screen_y, uv) =
                 if let (Some(atlas), Some((g, i))) = (self.kfm_atlas.as_ref(), sprite_key) {
                     if let (Some(info), Some(uv)) = (atlas.get_info(g, i), atlas.get_uv(g, i)) {
                         let w = info.width as f32;
                         let h = info.height as f32;
                         let sx = x - info.axis_x as f32 * SPRITE_SCALE - camera_x;
-                        let sy = ground_screen_y - y - info.axis_y as f32 * SPRITE_SCALE;
+                        // MUGEN -y=up: ground_screen_y + y places sprite above ground when y<0.
+                        let sy = ground_screen_y + y - info.axis_y as f32 * SPRITE_SCALE;
                         let scaled_w = w * SPRITE_SCALE;
                         let scaled_h = h * SPRITE_SCALE;
                         (scaled_w, scaled_h, sx, sy, uv)
                     } else {
-                        (FIGHTER_W, FIGHTER_H, x - FIGHTER_W / 2.0 - camera_x, ground_screen_y - y - FIGHTER_H, [0.0, 0.0, 1.0, 1.0])
+                        (FIGHTER_W, FIGHTER_H, x - FIGHTER_W / 2.0 - camera_x, ground_screen_y + y - FIGHTER_H, [0.0, 0.0, 1.0, 1.0])
                     }
                 } else {
-                    (FIGHTER_W, FIGHTER_H, x - FIGHTER_W / 2.0 - camera_x, ground_screen_y - y - FIGHTER_H, [0.0, 0.0, 1.0, 1.0])
+                    (FIGHTER_W, FIGHTER_H, x - FIGHTER_W / 2.0 - camera_x, ground_screen_y + y - FIGHTER_H, [0.0, 0.0, 1.0, 1.0])
                 };
 
             // Horizontal flip based on facing direction
@@ -842,9 +1349,10 @@ impl App {
                 [uv[0] + uv[2], uv[1], -uv[2], uv[3]]
             };
 
-            fighter_instances.push(QuadInstance {                rect: [screen_x, screen_y, render_w, render_h],
+            fighter_instances.push(QuadInstance {
+                rect: [screen_x, screen_y, render_w, render_h],
                 color: if self.use_sprites {
-                    [1.0, 1.0, 1.0, 1.0]  // White tint for textured sprites
+                    [1.0, 1.0, 1.0, 1.0]
                 } else {
                     color.0
                 },
@@ -904,7 +1412,7 @@ impl App {
             self.fighter_texture.as_ref(),
         );
 
-        // Pass 2: text (LoadOp::Load - draws on top without clearing).
+        // Pass 3: text (LoadOp::Load - draws on top without clearing).
         {
             let mut text_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("text_pass"),

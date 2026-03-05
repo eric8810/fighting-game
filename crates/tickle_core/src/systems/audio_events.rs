@@ -1,4 +1,4 @@
-use crate::components::StateType;
+use crate::state_constants::*;
 use crate::systems::collision::HitEvent;
 
 /// Strength of a hit, used to select the appropriate sound effect.
@@ -26,7 +26,7 @@ impl HitSoundStrength {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum GameAudioEvent {
     HitSound { strength: HitSoundStrength },
-    StateChangeSound { new_state: StateType },
+    StateChangeSound { new_state: i32 },
     RoundStart,
     RoundEnd,
 }
@@ -42,13 +42,12 @@ pub fn audio_events_from_hits(hit_events: &[HitEvent]) -> Vec<GameAudioEvent> {
 }
 
 /// Generate an audio event when a fighter changes state.
-pub fn audio_event_from_state_change(new_state: StateType) -> Option<GameAudioEvent> {
+pub fn audio_event_from_state_change(new_state: i32) -> Option<GameAudioEvent> {
     // Only certain state transitions produce sounds
-    match new_state {
-        StateType::Hitstun | StateType::Blockstun => {
-            Some(GameAudioEvent::StateChangeSound { new_state })
-        }
-        _ => None,
+    if is_hit_state(new_state) || is_guard_state(new_state) {
+        Some(GameAudioEvent::StateChangeSound { new_state })
+    } else {
+        None
     }
 }
 
@@ -107,10 +106,10 @@ mod tests {
 
     #[test]
     fn test_audio_event_from_state_change() {
-        assert!(audio_event_from_state_change(StateType::Hitstun).is_some());
-        assert!(audio_event_from_state_change(StateType::Blockstun).is_some());
-        assert!(audio_event_from_state_change(StateType::Idle).is_none());
-        assert!(audio_event_from_state_change(StateType::Jump).is_none());
+        assert!(audio_event_from_state_change(STATE_HIT_STAND_LIGHT).is_some());
+        assert!(audio_event_from_state_change(STATE_GUARD_STAND).is_some());
+        assert!(audio_event_from_state_change(STATE_STAND).is_none());
+        assert!(audio_event_from_state_change(STATE_JUMP_UP).is_none());
     }
 
     #[test]

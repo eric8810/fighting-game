@@ -19,4 +19,10 @@ pub enum SffError {
 
     #[error("Palette not found for sprite group={0}, image={1}")]
     PaletteNotFound(u16, u16),
+
+    #[error("DEF parse error: {0}")]
+    DefParse(String),
+
+    #[error("Missing required field: {0}")]
+    MissingField(String),
 }

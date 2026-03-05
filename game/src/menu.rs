@@ -1,8 +1,9 @@
 use hecs::World;
 use tickle_audio;
 use tickle_core::{
-    Health, LogicVec2, Position, PowerGauge, PreviousPosition, StateMachine, Velocity,
+    FighterState, Health, InputBuffer, LogicVec2, Position, PowerGauge, PreviousPosition, Velocity,
 };
+use tickle_mugen::MugenFighterState;
 
 use crate::quad_renderer::QuadInstance;
 use crate::text_renderer::TextArea;
@@ -361,35 +362,43 @@ impl MenuSystem {
 
     /// Reset fighter positions and state for a new round.
     pub fn reset_fighters(world: &mut World) {
-        for (_, (_, pos, prev, vel, sm, hp, gauge)) in world.query_mut::<(
+        for (_, (_, pos, prev, vel, fs, mugen, ib, hp, gauge)) in world.query_mut::<(
             &Player1,
             &mut Position,
             &mut PreviousPosition,
             &mut Velocity,
-            &mut StateMachine,
+            &mut FighterState,
+            &mut MugenFighterState,
+            &mut InputBuffer,
             &mut Health,
             &mut PowerGauge,
         )>() {
             pos.pos = LogicVec2::from_pixels(200, 0);
             prev.pos = pos.pos;
             vel.vel = LogicVec2::ZERO;
-            *sm = StateMachine::new();
+            *fs = FighterState::new();
+            *mugen = MugenFighterState::default();
+            *ib = InputBuffer::new();
             hp.current = hp.max;
             gauge.current = 0;
         }
-        for (_, (_, pos, prev, vel, sm, hp, gauge)) in world.query_mut::<(
+        for (_, (_, pos, prev, vel, fs, mugen, ib, hp, gauge)) in world.query_mut::<(
             &Player2,
             &mut Position,
             &mut PreviousPosition,
             &mut Velocity,
-            &mut StateMachine,
+            &mut FighterState,
+            &mut MugenFighterState,
+            &mut InputBuffer,
             &mut Health,
             &mut PowerGauge,
         )>() {
             pos.pos = LogicVec2::from_pixels(600, 0);
             prev.pos = pos.pos;
             vel.vel = LogicVec2::ZERO;
-            *sm = StateMachine::new();
+            *fs = FighterState::new();
+            *mugen = MugenFighterState::default();
+            *ib = InputBuffer::new();
             hp.current = hp.max;
             gauge.current = 0;
         }
@@ -880,10 +889,10 @@ mod tests {
         let ui = UIRenderer::new();
 
         // Tick down the freeze timer.
-        assert!(!ms.update_round(&world, &ui)); // timer 2->1
-        assert!(!ms.update_round(&world, &ui)); // timer 1->0
+        assert!(!ms.update_round(&world, &ui).0); // timer 2->1
+        assert!(!ms.update_round(&world, &ui).0); // timer 1->0
                                                 // Timer hits 0, awards win and starts next round.
-        let reset = ms.update_round(&world, &ui);
+        let (reset, _) = ms.update_round(&world, &ui);
         assert!(reset);
         assert_eq!(ms.p1_wins, 1);
         assert_eq!(ms.current_round, 2);

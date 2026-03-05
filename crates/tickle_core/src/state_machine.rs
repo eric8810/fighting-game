@@ -1,13 +1,14 @@
-use crate::components::{FighterState, StateType};
+use crate::components::FighterState;
 use crate::input::{InputState, BUTTON_A, BUTTON_B, BUTTON_C};
+use crate::state_constants::*;
 use serde::{Deserialize, Serialize};
 
 /// Cancel window: a frame range during which an attack can be cancelled into
 /// another state category.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CancelWindow {
-    pub start_frame: u32,
-    pub end_frame: u32,
+    pub start_frame: i32,
+    pub end_frame: i32,
     pub allowed: CancelTarget,
 }
 
@@ -23,14 +24,14 @@ pub enum CancelTarget {
 /// Configuration for an attack state: total duration and cancel windows.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AttackData {
-    pub total_frames: u32,
+    pub total_frames: i32,
     pub cancel_windows: Vec<CancelWindow>,
 }
 
 /// Duration-based state config for hitstun / blockstun / knockdown.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct StunConfig {
-    pub duration: u32,
+    pub duration: i32,
 }
 
 /// StateMachine wraps FighterState and enforces legal transitions.
@@ -40,7 +41,7 @@ pub struct StateMachine {
     /// If the current state is an attack, its data lives here.
     current_attack: Option<AttackData>,
     /// Duration for hitstun/blockstun/knockdown (set on entry).
-    stun_duration: u32,
+    stun_duration: i32,
 }
 
 impl StateMachine {
@@ -52,66 +53,67 @@ impl StateMachine {
         }
     }
 
-    pub fn current_state(&self) -> StateType {
-        self.state.current_state
+    pub fn current_state(&self) -> i32 {
+        self.state.state_num
     }
 
-    pub fn state_frame(&self) -> u32 {
+    pub fn state_frame(&self) -> i32 {
         self.state.state_frame
     }
 
     /// Advance the frame counter and handle automatic transitions
     /// (attack completion, stun recovery). Returns the new state if
     /// an automatic transition occurred.
-    pub fn update(&mut self) -> Option<StateType> {
+    pub fn update(&mut self) -> Option<i32> {
         self.state.advance_frame();
 
-        match self.state.current_state {
-            StateType::Attack(_) => {
-                if let Some(ref atk) = self.current_attack {
-                    if self.state.state_frame >= atk.total_frames {
-                        self.enter_state(StateType::Idle);
-                        return Some(StateType::Idle);
-                    }
+        // Check if current state is an attack state
+        if is_attack_state(self.state.state_num) {
+            if let Some(ref atk) = self.current_attack {
+                if self.state.state_frame >= atk.total_frames as i32 {
+                    self.enter_state(STATE_STAND);
+                    return Some(STATE_STAND);
                 }
-                None
             }
-            StateType::Hitstun | StateType::Blockstun => {
-                if self.stun_duration > 0 && self.state.state_frame >= self.stun_duration {
-                    self.enter_state(StateType::Idle);
-                    return Some(StateType::Idle);
-                }
-                None
+            None
+        } else if is_hit_state(self.state.state_num) || is_guard_state(self.state.state_num) {
+            // Hitstun/blockstun recovery
+            if self.stun_duration > 0 && self.state.state_frame >= self.stun_duration as i32 {
+                self.enter_state(STATE_STAND);
+                return Some(STATE_STAND);
             }
-            StateType::Knockdown => {
-                if self.stun_duration > 0 && self.state.state_frame >= self.stun_duration {
-                    self.enter_state(StateType::Idle);
-                    return Some(StateType::Idle);
-                }
-                None
-            }
-            _ => None,
+            None
+        } else {
+            None
         }
     }
 
     /// Try to transition based on player input. Returns `Some(new_state)` if
     /// the transition is valid, `None` if blocked.
-    pub fn try_transition(&mut self, input: &InputState) -> Option<StateType> {
-        let desired = match self.state.current_state {
-            StateType::Idle => self.transitions_from_idle(input),
-            StateType::WalkForward | StateType::WalkBackward => self.transitions_from_walk(input),
-            StateType::Run => self.transitions_from_run(input),
-            StateType::Crouch => self.transitions_from_crouch(input),
-            StateType::Jump => self.transitions_from_jump(input),
-            StateType::Attack(_) => self.transitions_from_attack(input),
-            StateType::Hitstun | StateType::Blockstun | StateType::Knockdown => None,
+    pub fn try_transition(&mut self, input: &InputState) -> Option<i32> {
+        let desired = if self.state.state_num == STATE_STAND {
+            self.transitions_from_idle(input)
+        } else if self.state.state_num == STATE_WALK_FORWARD || self.state.state_num == STATE_WALK_BACKWARD {
+            self.transitions_from_walk(input)
+        } else if self.state.state_num == STATE_RUN_FORWARD {
+            self.transitions_from_run(input)
+        } else if self.state.state_num == STATE_CROUCH {
+            self.transitions_from_crouch(input)
+        } else if is_aerial_state(self.state.state_num) {
+            self.transitions_from_jump(input)
+        } else if is_attack_state(self.state.state_num) {
+            self.transitions_from_attack(input)
+        } else if is_hit_state(self.state.state_num) || is_guard_state(self.state.state_num) {
+            None
+        } else {
+            None
         };
 
         if let Some(new_state) = desired {
-            if let StateType::Attack(id) = new_state {
+            if is_attack_state(new_state) {
                 // Attack animation: 5 frames × 4 duration = 20 total frames.
                 // Cancel window opens at frame 8 (after startup) through frame 16.
-                self.enter_attack(id, AttackData {
+                self.enter_attack(new_state, AttackData {
                     total_frames: 20,
                     cancel_windows: vec![CancelWindow {
                         start_frame: 8,
@@ -127,17 +129,17 @@ impl StateMachine {
     }
 
     /// Force-enter a state (used by combat system for hitstun/blockstun).
-    pub fn force_enter(&mut self, new_state: StateType, duration: u32) {
+    pub fn force_enter(&mut self, new_state: i32, duration: i32) {
         self.stun_duration = duration;
         self.current_attack = None;
         self.state.change_state(new_state);
     }
 
     /// Enter an attack state with associated frame data.
-    pub fn enter_attack(&mut self, attack_id: u32, data: AttackData) {
+    pub fn enter_attack(&mut self, attack_state: i32, data: AttackData) {
         self.current_attack = Some(data);
         self.stun_duration = 0;
-        self.state.change_state(StateType::Attack(attack_id));
+        self.state.change_state(attack_state);
     }
 
     /// Check if the current attack is in a cancel window that allows the
@@ -183,96 +185,94 @@ impl StateMachine {
 
     // -- private helpers --
 
-    fn enter_state(&mut self, new_state: StateType) {
+    fn enter_state(&mut self, new_state: i32) {
         self.current_attack = None;
         self.stun_duration = 0;
         self.state.change_state(new_state);
     }
 
-    fn transitions_from_idle(&self, input: &InputState) -> Option<StateType> {
+    fn transitions_from_idle(&self, input: &InputState) -> Option<i32> {
         if input.is_pressed(BUTTON_A) || input.is_pressed(BUTTON_B) || input.is_pressed(BUTTON_C) {
-            return Some(StateType::Attack(0));
+            return Some(STATE_ATTACK_LIGHT);
         }
         if input.direction.is_up() {
-            return Some(StateType::Jump);
+            return Some(STATE_JUMP_UP);
         }
         if input.direction.is_down() {
-            return Some(StateType::Crouch);
+            return Some(STATE_CROUCH);
         }
         if input.direction.is_right() {
-            return Some(StateType::WalkForward);
+            return Some(STATE_WALK_FORWARD);
         }
         if input.direction.is_left() {
-            return Some(StateType::WalkBackward);
+            return Some(STATE_WALK_BACKWARD);
         }
         None
     }
 
-    fn transitions_from_walk(&self, input: &InputState) -> Option<StateType> {
+    fn transitions_from_walk(&self, input: &InputState) -> Option<i32> {
         if input.is_pressed(BUTTON_A) || input.is_pressed(BUTTON_B) || input.is_pressed(BUTTON_C) {
-            return Some(StateType::Attack(0));
+            return Some(STATE_ATTACK_LIGHT);
         }
         if input.direction.is_up() {
-            return Some(StateType::Jump);
+            return Some(STATE_JUMP_UP);
         }
         if input.direction == crate::input::Direction::Neutral {
-            return Some(StateType::Idle);
+            return Some(STATE_STAND);
         }
         if input.direction.is_down() {
-            return Some(StateType::Crouch);
+            return Some(STATE_CROUCH);
         }
         None
     }
 
-    fn transitions_from_run(&self, input: &InputState) -> Option<StateType> {
+    fn transitions_from_run(&self, input: &InputState) -> Option<i32> {
         if input.is_pressed(BUTTON_A) || input.is_pressed(BUTTON_B) || input.is_pressed(BUTTON_C) {
-            return Some(StateType::Attack(0));
+            return Some(STATE_ATTACK_LIGHT);
         }
         if input.direction.is_up() {
-            return Some(StateType::Jump);
+            return Some(STATE_JUMP_UP);
         }
         if input.direction == crate::input::Direction::Neutral {
-            return Some(StateType::Idle);
+            return Some(STATE_STAND);
         }
         None
     }
 
-    fn transitions_from_crouch(&self, input: &InputState) -> Option<StateType> {
+    fn transitions_from_crouch(&self, input: &InputState) -> Option<i32> {
         if input.is_pressed(BUTTON_A) || input.is_pressed(BUTTON_B) || input.is_pressed(BUTTON_C) {
-            return Some(StateType::Attack(0));
+            return Some(STATE_ATTACK_LIGHT);
         }
         if !input.direction.is_down() {
-            return Some(StateType::Idle);
+            return Some(STATE_STAND);
         }
         None
     }
 
-    fn transitions_from_jump(&self, input: &InputState) -> Option<StateType> {
+    fn transitions_from_jump(&self, input: &InputState) -> Option<i32> {
         // Only air attacks allowed during jump
         if input.is_pressed(BUTTON_A) || input.is_pressed(BUTTON_B) || input.is_pressed(BUTTON_C) {
-            return Some(StateType::Attack(0));
+            return Some(STATE_ATTACK_LIGHT);
         }
         None
     }
 
-    fn transitions_from_attack(&self, input: &InputState) -> Option<StateType> {
+    fn transitions_from_attack(&self, input: &InputState) -> Option<i32> {
         // Can only cancel during cancel windows
         if (self.in_cancel_window(CancelTarget::Normal) || self.in_cancel_window(CancelTarget::Any))
             && (input.is_pressed(BUTTON_A)
                 || input.is_pressed(BUTTON_B)
                 || input.is_pressed(BUTTON_C))
         {
-            return Some(StateType::Attack(0));
+            return Some(STATE_ATTACK_LIGHT);
         }
         None
     }
 
     /// Land from a jump (called externally when ground is detected).
     pub fn land(&mut self) {
-        if self.state.current_state == StateType::Jump
-            || matches!(self.state.current_state, StateType::Attack(_))
-        {
-            self.enter_state(StateType::Idle);
+        if is_aerial_state(self.state.state_num) || is_attack_state(self.state.state_num) {
+            self.enter_state(STATE_STAND);
         }
     }
 }
@@ -315,7 +315,7 @@ mod tests {
     #[test]
     fn test_initial_state_is_idle() {
         let sm = StateMachine::new();
-        assert_eq!(sm.current_state(), StateType::Idle);
+        assert_eq!(sm.current_state(), STATE_STAND);
         assert_eq!(sm.state_frame(), 0);
     }
 
@@ -323,8 +323,8 @@ mod tests {
     fn test_idle_to_walk_forward() {
         let mut sm = StateMachine::new();
         let result = sm.try_transition(&dir_right());
-        assert_eq!(result, Some(StateType::WalkForward));
-        assert_eq!(sm.current_state(), StateType::WalkForward);
+        assert_eq!(result, Some(STATE_WALK_FORWARD));
+        assert_eq!(sm.current_state(), STATE_WALK_FORWARD);
         assert_eq!(sm.state_frame(), 0);
     }
 
@@ -332,32 +332,32 @@ mod tests {
     fn test_idle_to_walk_backward() {
         let mut sm = StateMachine::new();
         let result = sm.try_transition(&dir_left());
-        assert_eq!(result, Some(StateType::WalkBackward));
-        assert_eq!(sm.current_state(), StateType::WalkBackward);
+        assert_eq!(result, Some(STATE_WALK_BACKWARD));
+        assert_eq!(sm.current_state(), STATE_WALK_BACKWARD);
     }
 
     #[test]
     fn test_idle_to_jump() {
         let mut sm = StateMachine::new();
         let result = sm.try_transition(&dir_up());
-        assert_eq!(result, Some(StateType::Jump));
-        assert_eq!(sm.current_state(), StateType::Jump);
+        assert_eq!(result, Some(STATE_JUMP_UP));
+        assert_eq!(sm.current_state(), STATE_JUMP_UP);
     }
 
     #[test]
     fn test_idle_to_crouch() {
         let mut sm = StateMachine::new();
         let result = sm.try_transition(&dir_down());
-        assert_eq!(result, Some(StateType::Crouch));
-        assert_eq!(sm.current_state(), StateType::Crouch);
+        assert_eq!(result, Some(STATE_CROUCH));
+        assert_eq!(sm.current_state(), STATE_CROUCH);
     }
 
     #[test]
     fn test_idle_to_attack() {
         let mut sm = StateMachine::new();
         let result = sm.try_transition(&press_a());
-        assert_eq!(result, Some(StateType::Attack(0)));
-        assert_eq!(sm.current_state(), StateType::Attack(0));
+        assert_eq!(result, Some(STATE_ATTACK_LIGHT));
+        assert_eq!(sm.current_state(), STATE_ATTACK_LIGHT);
     }
 
     #[test]
@@ -365,8 +365,8 @@ mod tests {
         let mut sm = StateMachine::new();
         sm.try_transition(&dir_right());
         let result = sm.try_transition(&neutral());
-        assert_eq!(result, Some(StateType::Idle));
-        assert_eq!(sm.current_state(), StateType::Idle);
+        assert_eq!(result, Some(STATE_STAND));
+        assert_eq!(sm.current_state(), STATE_STAND);
     }
 
     #[test]
@@ -374,7 +374,7 @@ mod tests {
         let mut sm = StateMachine::new();
         sm.try_transition(&dir_right());
         let result = sm.try_transition(&dir_up());
-        assert_eq!(result, Some(StateType::Jump));
+        assert_eq!(result, Some(STATE_JUMP_UP));
     }
 
     #[test]
@@ -383,7 +383,7 @@ mod tests {
         sm.try_transition(&dir_up()); // enter jump
         let result = sm.try_transition(&dir_right());
         assert_eq!(result, None); // can't walk in air
-        assert_eq!(sm.current_state(), StateType::Jump);
+        assert_eq!(sm.current_state(), STATE_JUMP_UP);
     }
 
     #[test]
@@ -391,14 +391,14 @@ mod tests {
         let mut sm = StateMachine::new();
         sm.try_transition(&dir_up());
         let result = sm.try_transition(&press_a());
-        assert_eq!(result, Some(StateType::Attack(0)));
+        assert_eq!(result, Some(STATE_ATTACK_LIGHT));
     }
 
     #[test]
     fn test_hitstun_blocks_all_input() {
         let mut sm = StateMachine::new();
-        sm.force_enter(StateType::Hitstun, 20);
-        assert_eq!(sm.current_state(), StateType::Hitstun);
+        sm.force_enter(STATE_HIT_STAND_LIGHT, 20);
+        assert_eq!(sm.current_state(), STATE_HIT_STAND_LIGHT);
         // All inputs should be blocked
         assert_eq!(sm.try_transition(&press_a()), None);
         assert_eq!(sm.try_transition(&dir_right()), None);
@@ -408,7 +408,7 @@ mod tests {
     #[test]
     fn test_blockstun_blocks_all_input() {
         let mut sm = StateMachine::new();
-        sm.force_enter(StateType::Blockstun, 10);
+        sm.force_enter(STATE_GUARD_STAND, 10);
         assert_eq!(sm.try_transition(&press_a()), None);
         assert_eq!(sm.try_transition(&dir_right()), None);
     }
@@ -416,7 +416,7 @@ mod tests {
     #[test]
     fn test_hitstun_recovery_to_idle() {
         let mut sm = StateMachine::new();
-        sm.force_enter(StateType::Hitstun, 5);
+        sm.force_enter(STATE_HIT_STAND_LIGHT, 5);
         // Advance 5 frames
         for _ in 0..4 {
             let r = sm.update();
@@ -424,8 +424,8 @@ mod tests {
         }
         // 5th frame triggers recovery
         let r = sm.update();
-        assert_eq!(r, Some(StateType::Idle));
-        assert_eq!(sm.current_state(), StateType::Idle);
+        assert_eq!(r, Some(STATE_STAND));
+        assert_eq!(sm.current_state(), STATE_STAND);
     }
 
     #[test]
@@ -435,15 +435,15 @@ mod tests {
             total_frames: 10,
             cancel_windows: vec![],
         };
-        sm.enter_attack(1, data);
-        assert_eq!(sm.current_state(), StateType::Attack(1));
+        sm.enter_attack(STATE_ATTACK_LIGHT, data);
+        assert_eq!(sm.current_state(), STATE_ATTACK_LIGHT);
         // Advance 9 frames (no transition yet)
         for _ in 0..9 {
             assert_eq!(sm.update(), None);
         }
         // 10th frame completes the attack
-        assert_eq!(sm.update(), Some(StateType::Idle));
-        assert_eq!(sm.current_state(), StateType::Idle);
+        assert_eq!(sm.update(), Some(STATE_STAND));
+        assert_eq!(sm.current_state(), STATE_STAND);
     }
 
     #[test]
@@ -457,7 +457,7 @@ mod tests {
                 allowed: CancelTarget::Normal,
             }],
         };
-        sm.enter_attack(1, data);
+        sm.enter_attack(STATE_ATTACK_MEDIUM, data);
         // Advance to frame 4 -- not in window yet
         for _ in 0..4 {
             sm.update();
@@ -466,7 +466,7 @@ mod tests {
         // Advance to frame 5 -- now in window
         sm.update();
         let result = sm.try_transition(&press_a());
-        assert_eq!(result, Some(StateType::Attack(0)));
+        assert_eq!(result, Some(STATE_ATTACK_LIGHT));
     }
 
     #[test]
@@ -476,7 +476,7 @@ mod tests {
             total_frames: 20,
             cancel_windows: vec![],
         };
-        sm.enter_attack(1, data);
+        sm.enter_attack(STATE_ATTACK_LIGHT, data);
         assert_eq!(sm.try_transition(&dir_right()), None);
         assert_eq!(sm.try_transition(&dir_up()), None);
     }
@@ -498,17 +498,17 @@ mod tests {
     fn test_land_from_jump() {
         let mut sm = StateMachine::new();
         sm.try_transition(&dir_up());
-        assert_eq!(sm.current_state(), StateType::Jump);
+        assert_eq!(sm.current_state(), STATE_JUMP_UP);
         sm.land();
-        assert_eq!(sm.current_state(), StateType::Idle);
+        assert_eq!(sm.current_state(), STATE_STAND);
     }
 
     #[test]
     fn test_crouch_to_idle_on_release() {
         let mut sm = StateMachine::new();
         sm.try_transition(&dir_down());
-        assert_eq!(sm.current_state(), StateType::Crouch);
+        assert_eq!(sm.current_state(), STATE_CROUCH);
         let result = sm.try_transition(&neutral());
-        assert_eq!(result, Some(StateType::Idle));
+        assert_eq!(result, Some(STATE_STAND));
     }
 }
